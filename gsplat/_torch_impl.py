@@ -156,6 +156,7 @@ def project_cov3d_ewa(
     fy: float,
     tan_fovx: float,
     tan_fovy: float,
+    filter_2d_kernel_size: float,
 ) -> Tuple[Tensor, Tensor]:
     assert mean3d.shape[-1] == 3, mean3d.shape
     assert cov3d.shape[-2:] == (3, 3), cov3d.shape
@@ -182,22 +183,22 @@ def project_cov3d_ewa(
     cov2d = torch.einsum("...ij,...jk,...kl->...il", T, cov3d, T.transpose(-1, -2))
     # add a little blur along axes and (TODO save upper triangular elements)
     det_orig = cov2d[..., 0, 0] * cov2d[..., 1, 1] - cov2d[..., 0, 1] * cov2d[..., 0, 1]
-    cov2d[..., 0, 0] = cov2d[..., 0, 0] + 0.3
-    cov2d[..., 1, 1] = cov2d[..., 1, 1] + 0.3
+    cov2d[..., 0, 0] = cov2d[..., 0, 0] + filter_2d_kernel_size
+    cov2d[..., 1, 1] = cov2d[..., 1, 1] + filter_2d_kernel_size
     det_blur = cov2d[..., 0, 0] * cov2d[..., 1, 1] - cov2d[..., 0, 1] * cov2d[..., 0, 1]
     compensation = torch.sqrt(torch.clamp(det_orig / det_blur, min=0))
     return cov2d[..., :2, :2], compensation
 
 
-def compute_compensation(cov2d_mat: Tensor):
+def compute_compensation(cov2d_mat: Tensor, filter_2d_kernel_size: float):
     """
     params: cov2d matrix (*, 2, 2)
     returns: compensation factor as calculated in project_cov3d_ewa
     """
     det_denom = cov2d_mat[..., 0, 0] * cov2d_mat[..., 1, 1] - cov2d_mat[..., 0, 1] ** 2
-    det_nomin = (cov2d_mat[..., 0, 0] - 0.3) * (cov2d_mat[..., 1, 1] - 0.3) - cov2d_mat[
-        ..., 0, 1
-    ] ** 2
+    det_nomin = (cov2d_mat[..., 0, 0] - filter_2d_kernel_size) * (
+        cov2d_mat[..., 1, 1] - filter_2d_kernel_size
+    ) - cov2d_mat[..., 0, 1] ** 2
     return torch.sqrt(torch.clamp(det_nomin / det_denom, min=0))
 
 
@@ -288,6 +289,7 @@ def project_gaussians_forward(
     img_size,
     block_width,
     clip_thresh=0.01,
+    filter_2d_kernel_size=0.3,
 ):
     tile_bounds = (
         (img_size[0] + block_width - 1) // block_width,
@@ -300,7 +302,7 @@ def project_gaussians_forward(
     p_view, is_close = clip_near_plane(means3d, viewmat, clip_thresh)
     cov3d = scale_rot_to_cov3d(scales, glob_scale, quats)
     cov2d, compensation = project_cov3d_ewa(
-        means3d, cov3d, viewmat, fx, fy, tan_fovx, tan_fovy
+        means3d, cov3d, viewmat, fx, fy, tan_fovx, tan_fovy, filter_2d_kernel_size
     )
     conic, radius, det_valid = compute_cov2d_bounds(cov2d)
     xys = project_pix(fullmat, means3d, img_size, (cx, cy))

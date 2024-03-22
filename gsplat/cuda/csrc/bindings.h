@@ -60,7 +60,8 @@ project_gaussians_forward_tensor(
     const unsigned img_height,
     const unsigned img_width,
     const unsigned block_width,
-    const float clip_thresh
+    const float clip_thresh,
+    const float filter_2d_kernel_size
 );
 
 std::tuple<
@@ -83,6 +84,7 @@ project_gaussians_backward_tensor(
     const float cy,
     const unsigned img_height,
     const unsigned img_width,
+    const float filter_2d_kernel_size,
     torch::Tensor &cov3d,
     torch::Tensor &radii,
     torch::Tensor &conics,

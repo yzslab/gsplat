@@ -142,7 +142,8 @@ project_gaussians_forward_tensor(
     const unsigned img_height,
     const unsigned img_width,
     const unsigned block_width,
-    const float clip_thresh
+    const float clip_thresh,
+    const float filter_2d_kernel_size
 ) {
     DEVICE_GUARD(means3d);
     dim3 img_size_dim3;
@@ -187,6 +188,7 @@ project_gaussians_forward_tensor(
         tile_bounds_dim3,
         block_width,
         clip_thresh,
+        filter_2d_kernel_size,
         // Outputs.
         cov3d_d.contiguous().data_ptr<float>(),
         (float2 *)xys_d.contiguous().data_ptr<float>(),
@@ -222,6 +224,7 @@ project_gaussians_backward_tensor(
     const float cy,
     const unsigned img_height,
     const unsigned img_width,
+    const float filter_2d_kernel_size,
     torch::Tensor &cov3d,
     torch::Tensor &radii,
     torch::Tensor &conics,
@@ -264,6 +267,7 @@ project_gaussians_backward_tensor(
         projmat.contiguous().data_ptr<float>(),
         intrins,
         img_size_dim3,
+        filter_2d_kernel_size,
         cov3d.contiguous().data_ptr<float>(),
         radii.contiguous().data_ptr<int32_t>(),
         (float3 *)conics.contiguous().data_ptr<float>(),

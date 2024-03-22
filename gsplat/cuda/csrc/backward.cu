@@ -322,6 +322,7 @@ __global__ void project_gaussians_backward_kernel(
     const float* __restrict__ projmat,
     const float4 intrins,
     const dim3 img_size,
+    const float filter_2d_kernel_size,
     const float* __restrict__ cov3d,
     const int* __restrict__ radii,
     const float3* __restrict__ conics,
@@ -358,7 +359,7 @@ __global__ void project_gaussians_backward_kernel(
 
     // get v_cov2d
     cov2d_to_conic_vjp(conics[idx], v_conic[idx], v_cov2d[idx]);
-    cov2d_to_compensation_vjp(compensation[idx], conics[idx], v_compensation[idx], v_cov2d[idx]);
+    cov2d_to_compensation_vjp(compensation[idx], filter_2d_kernel_size, conics[idx], v_compensation[idx], v_cov2d[idx]);
     // get v_cov3d (and v_mean3d contribution)
     project_cov3d_ewa_vjp(
         p_world,

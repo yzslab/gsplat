@@ -141,6 +141,7 @@ def test_project_gaussians_backward():
     # 90 degree FOV
     fx, fy = W / 2, W / 2
     clip_thresh = 0.01
+    filter_2d_kernel_size = 0.1
     viewmat = torch.tensor(
         [
             [1.0, 0.0, 0.0, 0.0],
@@ -177,6 +178,7 @@ def test_project_gaussians_backward():
         (W, H),
         BLOCK_SIZE,
         clip_thresh,
+        filter_2d_kernel_size,
     )
 
     # Test backward pass
@@ -200,6 +202,7 @@ def test_project_gaussians_backward():
         cy,
         H,
         W,
+        filter_2d_kernel_size,
         cov3d,
         radii,
         conics,
@@ -231,7 +234,14 @@ def test_project_gaussians_backward():
         cov3d_mat[..., i, j] = cov3d
         cov3d_mat[..., [1, 2, 2], [0, 0, 1]] = cov3d[..., [1, 2, 4]]
         cov2d, _ = _torch_impl.project_cov3d_ewa(
-            mean3d, cov3d_mat, viewmat, fx, fy, tan_fovx, tan_fovy
+            mean3d,
+            cov3d_mat,
+            viewmat,
+            fx,
+            fy,
+            tan_fovx,
+            tan_fovy,
+            filter_2d_kernel_size,
         )
         ii, jj = torch.triu_indices(2, 2)
         return cov2d[..., ii, jj]
@@ -255,7 +265,7 @@ def test_project_gaussians_backward():
         i, j = torch.triu_indices(2, 2)
         cov2d_mat[..., i, j] = cov2d
         cov2d_mat[..., 1, 0] = cov2d[..., 1]
-        return _torch_impl.compute_compensation(cov2d_mat)
+        return _torch_impl.compute_compensation(cov2d_mat, filter_2d_kernel_size)
 
     def project_pix_partial(mean3d):
         """

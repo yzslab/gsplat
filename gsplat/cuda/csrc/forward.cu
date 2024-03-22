@@ -23,6 +23,7 @@ __global__ void project_gaussians_forward_kernel(
     const dim3 tile_bounds,
     const unsigned block_width,
     const float clip_thresh,
+    const float filter_2d_kernel_size,
     float* __restrict__ covs3d,
     float2* __restrict__ xys,
     float* __restrict__ depths,
@@ -67,7 +68,7 @@ __global__ void project_gaussians_forward_kernel(
     float3 cov2d;
     float comp;
     project_cov3d_ewa(
-        p_world, cur_cov3d, viewmat, fx, fy, tan_fovx, tan_fovy,
+        p_world, cur_cov3d, viewmat, fx, fy, tan_fovx, tan_fovy, filter_2d_kernel_size,
         cov2d, comp
     );
     // printf("cov2d %d, %.2f %.2f %.2f\n", idx, cov2d.x, cov2d.y, cov2d.z);
@@ -428,6 +429,7 @@ __device__ void project_cov3d_ewa(
     const float fy,
     const float tan_fovx,
     const float tan_fovy,
+    const float filter_2d_kernel_size,
     float3 &cov2d,
     float &compensation
 ) {
@@ -490,9 +492,9 @@ __device__ void project_cov3d_ewa(
     // and compute the density compensation factor due to the blurs
     float c00 = cov[0][0], c11 = cov[1][1], c01 = cov[0][1];
     float det_orig = c00 * c11 - c01 * c01;
-    cov2d.x = c00 + 0.3f;
+    cov2d.x = c00 + filter_2d_kernel_size;
     cov2d.y = c01;
-    cov2d.z = c11 + 0.3f;
+    cov2d.z = c11 + filter_2d_kernel_size;
     float det_blur = cov2d.x * cov2d.z - cov2d.y * cov2d.y;
     compensation = std::sqrt(std::max(0.f, det_orig / det_blur));
 }

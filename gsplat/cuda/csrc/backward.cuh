@@ -15,6 +15,7 @@ __global__ void project_gaussians_backward_kernel(
     const float* __restrict__ projmat,
     const float4 intrins,
     const dim3 img_size,
+    const float filter_2d_kernel_size,
     const float* __restrict__ cov3d,
     const int* __restrict__ radii,
     const float3* __restrict__ conics,

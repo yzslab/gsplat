@@ -16,6 +16,7 @@ __global__ void project_gaussians_forward_kernel(
     const dim3 tile_bounds,
     const unsigned block_width,
     const float clip_thresh,
+    const float filter_2d_kernel_size,
     float* __restrict__ covs3d,
     float2* __restrict__ xys,
     float* __restrict__ depths,
@@ -67,6 +68,7 @@ __device__ void project_cov3d_ewa(
     const float fy,
     const float tan_fovx,
     const float tan_fovy,
+    const float filter_2d_kernel_size,
     float3 &cov2d,
     float &comp
 );

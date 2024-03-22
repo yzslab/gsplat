@@ -96,6 +96,7 @@ class _ProjectGaussians(Function):
         img_width: int,
         block_width: int,
         clip_thresh: float = 0.01,
+        filter_2d_kernel_size: float = 0.3,
     ):
         num_points = means3d.shape[-2]
         if num_points < 1 or means3d.shape[-1] != 3:
@@ -125,6 +126,7 @@ class _ProjectGaussians(Function):
             img_width,
             block_width,
             clip_thresh,
+            filter_2d_kernel_size,
         )
 
         # Save non-tensors.
@@ -136,6 +138,7 @@ class _ProjectGaussians(Function):
         ctx.fy = fy
         ctx.cx = cx
         ctx.cy = cy
+        ctx.filter_2d_kernel_size = filter_2d_kernel_size
 
         # Save tensors.
         ctx.save_for_backward(
@@ -189,6 +192,7 @@ class _ProjectGaussians(Function):
             ctx.cy,
             ctx.img_height,
             ctx.img_width,
+            ctx.filter_2d_kernel_size,
             cov3d,
             radii,
             conics,
@@ -228,5 +232,7 @@ class _ProjectGaussians(Function):
             # block_width: int,
             None,
             # clip_thresh,
+            None,
+            # filter_2d_kernel_size,
             None,
         )
