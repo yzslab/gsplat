@@ -24,6 +24,7 @@ def project_gaussians(
     img_width: int,
     block_width: int,
     clip_thresh: float = 0.01,
+    filter_2d_kernel_size: float = 0.3,
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
     """This function projects 3D gaussians to 2D using the EWA splatting method for gaussian splatting.
 
@@ -45,6 +46,7 @@ def project_gaussians(
        img_width (int): width of the rendered image.
        block_width (int): side length of tiles inside projection/rasterization in pixels (always square). 16 is a good default value, must be between 2 and 16 inclusive.
        clip_thresh (float): minimum z depth threshold.
+       filter_2d_kernel_size (float)
 
     Returns:
         A tuple of {Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor}:
@@ -73,6 +75,7 @@ def project_gaussians(
         img_width,
         block_width,
         clip_thresh,
+        filter_2d_kernel_size,
     )
 
 
