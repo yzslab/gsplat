@@ -1,7 +1,8 @@
 """Python bindings for 3D gaussian projection"""
 
-from typing import Tuple
+from typing import Optional, Tuple
 
+import torch
 from jaxtyping import Float
 from torch import Tensor
 from torch.autograd import Function
@@ -15,7 +16,6 @@ def project_gaussians(
     glob_scale: float,
     quats: Float[Tensor, "*batch 4"],
     viewmat: Float[Tensor, "4 4"],
-    projmat: Float[Tensor, "4 4"],
     fx: float,
     fy: float,
     cx: float,
@@ -35,9 +35,8 @@ def project_gaussians(
        means3d (Tensor): xyzs of gaussians.
        scales (Tensor): scales of the gaussians.
        glob_scale (float): A global scaling factor applied to the scene.
-       quats (Tensor): rotations in quaternion [w,x,y,z] format.
+       quats (Tensor): rotations in normalized quaternion [w,x,y,z] format.
        viewmat (Tensor): view matrix for rendering.
-       projmat (Tensor): projection matrix for rendering.
        fx (float): focal length x.
        fy (float): focal length y.
        cx (float): principal point x.
@@ -60,13 +59,13 @@ def project_gaussians(
         - **cov3d** (Tensor): 3D covariances.
     """
     assert block_width > 1 and block_width <= 16, "block_width must be between 2 and 16"
+    assert (quats.norm(dim=-1) - 1 < 1e-6).all(), "quats must be normalized"
     return _ProjectGaussians.apply(
         means3d.contiguous(),
         scales.contiguous(),
         glob_scale,
         quats.contiguous(),
         viewmat.contiguous(),
-        projmat.contiguous(),
         fx,
         fy,
         cx,
@@ -90,7 +89,6 @@ class _ProjectGaussians(Function):
         glob_scale: float,
         quats: Float[Tensor, "*batch 4"],
         viewmat: Float[Tensor, "4 4"],
-        projmat: Float[Tensor, "4 4"],
         fx: float,
         fy: float,
         cx: float,
@@ -120,7 +118,6 @@ class _ProjectGaussians(Function):
             glob_scale,
             quats,
             viewmat,
-            projmat,
             fx,
             fy,
             cx,
@@ -149,7 +146,6 @@ class _ProjectGaussians(Function):
             scales,
             quats,
             viewmat,
-            projmat,
             cov3d,
             radii,
             conics,
@@ -174,7 +170,6 @@ class _ProjectGaussians(Function):
             scales,
             quats,
             viewmat,
-            projmat,
             cov3d,
             radii,
             conics,
@@ -188,7 +183,6 @@ class _ProjectGaussians(Function):
             ctx.glob_scale,
             quats,
             viewmat,
-            projmat,
             ctx.fx,
             ctx.fy,
             ctx.cx,
@@ -206,6 +200,43 @@ class _ProjectGaussians(Function):
             v_compensation,
         )
 
+        if viewmat.requires_grad:
+            v_viewmat = torch.zeros_like(viewmat)
+            R = viewmat[..., :3, :3]
+
+            # Denote ProjectGaussians for a single Gaussian (mean3d, q, s)
+            # viemwat = [R, t] as:
+            #
+            #   f(mean3d, q, s, R, t, intrinsics)
+            #       = g(R @ mean3d + t,
+            #           R @ cov3d_world(q, s) @ R^T ))
+            #
+            # Then, the Jacobian w.r.t., t is:
+            #
+            #   d f / d t = df / d mean3d @ R^T
+            #
+            # and, in the context of fine tuning camera poses, it is reasonable
+            # to assume that
+            #
+            #   d f / d R_ij =~ \sum_l d f / d t_l * d (R @ mean3d)_l / d R_ij
+            #                = d f / d_t_i * mean3d[j]
+            #
+            # Gradients for R and t can then be obtained by summing over
+            # all the Gaussians.
+            v_mean3d_cam = torch.matmul(v_mean3d, R.transpose(-1, -2))
+
+            # gradient w.r.t. view matrix translation
+            v_viewmat[..., :3, 3] = v_mean3d_cam.sum(-2)
+
+            # gradent w.r.t. view matrix rotation
+            for j in range(3):
+                for l in range(3):
+                    v_viewmat[..., j, l] = torch.dot(
+                        v_mean3d_cam[..., j], means3d[..., l]
+                    )
+        else:
+            v_viewmat = None
+
         # Return a gradient for each input.
         return (
             # means3d: Float[Tensor, "*batch 3"],
@@ -217,9 +248,7 @@ class _ProjectGaussians(Function):
             # quats: Float[Tensor, "*batch 4"],
             v_quat,
             # viewmat: Float[Tensor, "4 4"],
-            None,
-            # projmat: Float[Tensor, "4 4"],
-            None,
+            v_viewmat,
             # fx: float,
             None,
             # fy: float,

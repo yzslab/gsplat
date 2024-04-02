@@ -44,8 +44,8 @@ __global__ void nd_rasterize_backward_kernel(
     int32_t tile_id = blockIdx.y * tile_bounds.x + blockIdx.x;
     unsigned i = blockIdx.y * blockDim.y + threadIdx.y;
     unsigned j = blockIdx.x * blockDim.x + threadIdx.x;
-    float px = (float)j;
-    float py = (float)i;
+    float px = (float)j + 0.5;
+    float py = (float)i + 0.5;
     const int32_t pix_id = min(i * img_size.x + j, img_size.x * img_size.y - 1);
 
     // keep not rasterizing threads around for reading data
@@ -159,8 +159,8 @@ __global__ void rasterize_backward_kernel(
     unsigned j =
         block.group_index().x * block.group_dim().x + block.thread_index().x;
 
-    const float px = (float)j;
-    const float py = (float)i;
+    const float px = (float)j + 0.5;
+    const float py = (float)i + 0.5;
     // clamp this value to the last pixel
     const int32_t pix_id = min(i * img_size.x + j, img_size.x * img_size.y - 1);
 
@@ -319,7 +319,6 @@ __global__ void project_gaussians_backward_kernel(
     const float glob_scale,
     const float4* __restrict__ quats,
     const float* __restrict__ viewmat,
-    const float* __restrict__ projmat,
     const float4 intrins,
     const dim3 img_size,
     const float filter_2d_kernel_size,
@@ -344,10 +343,11 @@ __global__ void project_gaussians_backward_kernel(
     float3 p_world = means3d[idx];
     float fx = intrins.x;
     float fy = intrins.y;
-    float cx = intrins.z;
-    float cy = intrins.w;
+    float3 p_view = transform_4x3(viewmat, p_world);
     // get v_mean3d from v_xy
-    v_mean3d[idx] = project_pix_vjp(projmat, p_world, img_size, v_xy[idx]);
+    v_mean3d[idx] = transform_4x3_rot_only_transposed(
+        viewmat,
+        project_pix_vjp({fx, fy}, p_view, v_xy[idx]));
 
     // get z gradient contribution to mean3d gradient
     // z = viemwat[8] * mean3d.x + viewmat[9] * mean3d.y + viewmat[10] *
