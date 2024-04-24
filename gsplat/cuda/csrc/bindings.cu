@@ -448,6 +448,66 @@ rasterize_forward_tensor(
     return std::make_tuple(out_img, final_Ts, final_idx);
 }
 
+std::tuple<torch::Tensor, torch::Tensor>
+hit_pixel_count_forward_tensor(
+    const std::tuple<int, int, int> tile_bounds,
+    const std::tuple<int, int, int> block,
+    const std::tuple<int, int, int> img_size,
+    const torch::Tensor &gaussian_ids_sorted,
+    const torch::Tensor &tile_bins,
+    const torch::Tensor &xys,
+    const torch::Tensor &conics,
+    const torch::Tensor &opacities
+) {
+    DEVICE_GUARD(xys);
+    CHECK_INPUT(gaussian_ids_sorted);
+    CHECK_INPUT(tile_bins);
+    CHECK_INPUT(xys);
+    CHECK_INPUT(conics);
+    CHECK_INPUT(opacities);
+
+    dim3 tile_bounds_dim3;
+    tile_bounds_dim3.x = std::get<0>(tile_bounds);
+    tile_bounds_dim3.y = std::get<1>(tile_bounds);
+    tile_bounds_dim3.z = std::get<2>(tile_bounds);
+
+    dim3 block_dim3;
+    block_dim3.x = std::get<0>(block);
+    block_dim3.y = std::get<1>(block);
+    block_dim3.z = std::get<2>(block);
+
+    dim3 img_size_dim3;
+    img_size_dim3.x = std::get<0>(img_size);
+    img_size_dim3.y = std::get<1>(img_size);
+    img_size_dim3.z = std::get<2>(img_size);
+
+    const int img_width = img_size_dim3.x;
+    const int img_height = img_size_dim3.y;
+
+    const int num_points = xys.size(0);
+
+    torch::Tensor gaussian_count = torch::zeros(
+        {num_points}, xys.options().dtype(torch::kInt32)
+    );
+    torch::Tensor important_score = torch::zeros(
+        {num_points}, xys.options().dtype(torch::kFloat32)
+    );
+
+    hit_pixel_count_forward<<<tile_bounds_dim3, block_dim3>>>(
+        tile_bounds_dim3,
+        img_size_dim3,
+        gaussian_ids_sorted.contiguous().data_ptr<int32_t>(),
+        (int2 *)tile_bins.contiguous().data_ptr<int>(),
+        (float2 *)xys.contiguous().data_ptr<float>(),
+        (float3 *)conics.contiguous().data_ptr<float>(),
+        opacities.contiguous().data_ptr<float>(),
+        gaussian_count.contiguous().data_ptr<int>(),
+        important_score.contiguous().data_ptr<float>()
+    );
+
+    return std::make_tuple(gaussian_count, important_score);
+}
+
 
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor>
 nd_rasterize_forward_tensor(

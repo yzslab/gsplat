@@ -41,6 +41,18 @@ __global__ void rasterize_forward(
     const float3& __restrict__ background
 );
 
+__global__ void hit_pixel_count_forward(
+    const dim3 tile_bounds,
+    const dim3 img_size,
+    const int32_t* __restrict__ gaussian_ids_sorted,
+    const int2* __restrict__ tile_bins,
+    const float2* __restrict__ xys,
+    const float3* __restrict__ conics,
+    const float* __restrict__ opacities,
+    int* __restrict__ gaussian_count,
+    float* __restrict__ important_score
+);
+
 // compute output color image from binned and sorted gaussians
 __global__ void nd_rasterize_forward(
     const dim3 tile_bounds,
