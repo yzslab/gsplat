@@ -47,6 +47,7 @@ __global__ void nd_rasterize_backward_kernel(
     const float* __restrict__ v_output,
     const float* __restrict__ v_output_alpha,
     float2* __restrict__ v_xy,
+    float2* __restrict__ v_xy_abs,
     float3* __restrict__ v_conic,
     float* __restrict__ v_rgb,
     float* __restrict__ v_opacity
@@ -67,6 +68,7 @@ __global__ void rasterize_backward_kernel(
     const float3* __restrict__ v_output,
     const float* __restrict__ v_output_alpha,
     float2* __restrict__ v_xy,
+    float2* __restrict__ v_xy_abs,
     float3* __restrict__ v_conic,
     float3* __restrict__ v_rgb,
     float* __restrict__ v_opacity

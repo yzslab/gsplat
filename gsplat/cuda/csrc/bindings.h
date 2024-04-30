@@ -165,6 +165,7 @@ std::tuple<
 std::
     tuple<
         torch::Tensor, // dL_dxy
+        torch::Tensor, // dL_dxy_abs
         torch::Tensor, // dL_dconic
         torch::Tensor, // dL_dcolors
         torch::Tensor  // dL_dopacity
@@ -189,6 +190,7 @@ std::
 std::
     tuple<
         torch::Tensor, // dL_dxy
+        torch::Tensor, // dL_dxy_abs
         torch::Tensor, // dL_dconic
         torch::Tensor, // dL_dcolors
         torch::Tensor  // dL_dopacity
