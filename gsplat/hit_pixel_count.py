@@ -37,10 +37,7 @@ def hit_pixel_count(
         block_width (int): MUST match whatever block width was used in the project_gaussians call. integer number of pixels between 2 and 16 inclusive
 
     Returns:
-        A Tensor:
-
-        - **out_img** (Tensor): N-dimensional rendered output image.
-        - **out_alpha** (Optional[Tensor]): Alpha channel of the rendered output image.
+        hit_pixel_count, important_opacity_score, important_alpha_score, important_visibility_score
     """
     assert block_width > 1 and block_width <= 16, "block_width must be between 2 and 16"
 
@@ -75,7 +72,7 @@ class _CountGaussianHitPixels(Function):
         img_height: int,
         img_width: int,
         block_width: int,
-    ) -> tuple[Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         num_points = xys.size(0)
         tile_bounds = (
             (img_width + block_width - 1) // block_width,
@@ -88,8 +85,10 @@ class _CountGaussianHitPixels(Function):
         num_intersects, cum_tiles_hit = compute_cumulative_intersects(num_tiles_hit)
 
         if num_intersects < 1:
-            count = torch.zeros((xys.shape[0]), dtype=torch.int, device=xys.device)
-            score = torch.zeros((xys.shape[0]), dtype=torch.float, device=xys.device)
+            hit_pixel_count = torch.zeros((xys.shape[0]), dtype=torch.int, device=xys.device)
+            important_opacity_score = torch.zeros((xys.shape[0]), dtype=torch.float, device=xys.device)
+            important_alpha_score = torch.zeros((xys.shape[0]), dtype=torch.float, device=xys.device)
+            important_visibility_score = torch.zeros((xys.shape[0]), dtype=torch.float, device=xys.device)
         else:
             (
                 isect_ids_unsorted,
@@ -108,7 +107,7 @@ class _CountGaussianHitPixels(Function):
                 block_width,
             )
 
-            count, score = _C.hit_pixel_count_forward(
+            hit_pixel_count, important_opacity_score, important_alpha_score, important_visibility_score = _C.hit_pixel_count_forward(
                 tile_bounds,
                 block,
                 img_size,
@@ -119,7 +118,7 @@ class _CountGaussianHitPixels(Function):
                 opacity,
             )
 
-        return count, score
+        return hit_pixel_count, important_opacity_score, important_alpha_score, important_visibility_score
 
     @staticmethod
     def backward(ctx, count, score):

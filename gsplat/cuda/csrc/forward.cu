@@ -428,7 +428,9 @@ __global__ void hit_pixel_count_forward(
     const float3* __restrict__ conics,
     const float* __restrict__ opacities,
     int* __restrict__ gaussian_count,
-    float* __restrict__ important_score
+    float* __restrict__ important_opacity_score,
+    float* __restrict__ important_alpha_score,
+    float* __restrict__ important_visibility_score
 ) {
     // each thread draws one pixel, but also timeshares caching gaussians in a
     // shared tile
@@ -513,9 +515,14 @@ __global__ void hit_pixel_count_forward(
                 break;
             }
 
+            int32_t g = id_batch[t];
+            const float vis = alpha * T;
+
             // LightGaussian
-            gaussian_count[id_batch[t]]++;
-            important_score[id_batch[t]] += opac;
+            gaussian_count[g]++;
+            important_opacity_score[g] += opac;
+            important_alpha_score[g] += alpha;
+            important_visibility_score[g] += vis;
 
             T = next_T;
         }

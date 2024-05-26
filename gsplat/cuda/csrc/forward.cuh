@@ -50,7 +50,9 @@ __global__ void hit_pixel_count_forward(
     const float3* __restrict__ conics,
     const float* __restrict__ opacities,
     int* __restrict__ gaussian_count,
-    float* __restrict__ important_score
+    float* __restrict__ important_opacity_score,
+    float* __restrict__ important_alpha_score,
+    float* __restrict__ important_visibility_score
 );
 
 // compute output color image from binned and sorted gaussians

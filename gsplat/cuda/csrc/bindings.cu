@@ -448,7 +448,7 @@ rasterize_forward_tensor(
     return std::make_tuple(out_img, final_Ts, final_idx);
 }
 
-std::tuple<torch::Tensor, torch::Tensor>
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
 hit_pixel_count_forward_tensor(
     const std::tuple<int, int, int> tile_bounds,
     const std::tuple<int, int, int> block,
@@ -489,7 +489,13 @@ hit_pixel_count_forward_tensor(
     torch::Tensor gaussian_count = torch::zeros(
         {num_points}, xys.options().dtype(torch::kInt32)
     );
-    torch::Tensor important_score = torch::zeros(
+    torch::Tensor important_opacity_score = torch::zeros(
+        {num_points}, xys.options().dtype(torch::kFloat32)
+    );
+    torch::Tensor important_alpha_score = torch::zeros(
+        {num_points}, xys.options().dtype(torch::kFloat32)
+    );
+    torch::Tensor important_visibility_score = torch::zeros(
         {num_points}, xys.options().dtype(torch::kFloat32)
     );
 
@@ -502,10 +508,12 @@ hit_pixel_count_forward_tensor(
         (float3 *)conics.contiguous().data_ptr<float>(),
         opacities.contiguous().data_ptr<float>(),
         gaussian_count.contiguous().data_ptr<int>(),
-        important_score.contiguous().data_ptr<float>()
+        important_opacity_score.contiguous().data_ptr<float>(),
+        important_alpha_score.contiguous().data_ptr<float>(),
+        important_visibility_score.contiguous().data_ptr<float>()
     );
 
-    return std::make_tuple(gaussian_count, important_score);
+    return std::make_tuple(gaussian_count, important_opacity_score, important_alpha_score, important_visibility_score);
 }
 
 
