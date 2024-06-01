@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from jaxtyping import Float
 from torch import Tensor
-from typing import Tuple, Literal
+from typing import Tuple, Literal, Optional
 
 
 def compute_sh_color(
@@ -248,13 +248,18 @@ def project_cov3d_ewa(
     tan_fovx: float,
     tan_fovy: float,
     filter_2d_kernel_size: float,
+    is_valid: Optional[Tensor] = None,
 ) -> Tuple[Tensor, Tensor]:
     assert mean3d.shape[-1] == 3, mean3d.shape
     assert cov3d.shape[-2:] == (3, 3), cov3d.shape
     assert viewmat.shape[-2:] == (4, 4), viewmat.shape
+
+    if is_valid is None:
+        is_valid = torch.ones(mean3d.shape[:-1], dtype=torch.bool, device=mean3d.device)
+
     W = viewmat[..., :3, :3]  # (..., 3, 3)
     p = viewmat[..., :3, 3]  # (..., 3)
-    t = torch.einsum("...ij,...j->...i", W, mean3d) + p  # (..., 3)
+    t = torch.einsum("...ij,...j->...i", W, mean3d[is_valid, ...]) + p  # (..., 3)
 
     rz = 1.0 / t[..., 2]  # (...,)
     rz2 = rz**2  # (...,)
@@ -271,14 +276,28 @@ def project_cov3d_ewa(
         dim=-1,
     ).reshape(*rz.shape, 2, 3)
     T = torch.matmul(J, W)  # (..., 2, 3)
-    cov2d = torch.einsum("...ij,...jk,...kl->...il", T, cov3d, T.transpose(-1, -2))
+    cov2d = torch.einsum(
+        "...ij,...jk,...kl->...il", T, cov3d[is_valid, ...], T.transpose(-1, -2)
+    )
+
     # add a little blur along axes and (TODO save upper triangular elements)
     det_orig = cov2d[..., 0, 0] * cov2d[..., 1, 1] - cov2d[..., 0, 1] * cov2d[..., 0, 1]
-    cov2d[..., 0, 0] = cov2d[..., 0, 0] + filter_2d_kernel_size
-    cov2d[..., 1, 1] = cov2d[..., 1, 1] + filter_2d_kernel_size
-    det_blur = cov2d[..., 0, 0] * cov2d[..., 1, 1] - cov2d[..., 0, 1] * cov2d[..., 0, 1]
-    compensation = torch.sqrt(torch.clamp(det_orig / det_blur, min=0))
-    return cov2d[..., :2, :2], compensation
+    cov2d_blurred = cov2d * 1
+    cov2d_blurred[..., 0, 0] = cov2d[..., 0, 0] + filter_2d_kernel_size
+    cov2d_blurred[..., 1, 1] = cov2d[..., 1, 1] + filter_2d_kernel_size
+    det_blur = (
+        cov2d_blurred[..., 0, 0] * cov2d_blurred[..., 1, 1]
+        - cov2d_blurred[..., 0, 1] * cov2d_blurred[..., 0, 1]
+    )
+    # note: sqrt(x) is not differentiable at x=0
+    compensation = torch.sqrt(torch.clamp(det_orig / det_blur, min=1e-10))
+
+    cov2d_all = torch.zeros(cov3d.shape[0], 2, 2, device=cov2d.device)
+    compensation_all = torch.zeros(cov3d.shape[0], device=cov2d.device)
+
+    cov2d_all[is_valid, ...] = cov2d_blurred
+    compensation_all[is_valid] = compensation
+    return cov2d_all, compensation_all
 
 
 def compute_compensation(cov2d_mat: Tensor, filter_2d_kernel_size: float):
@@ -293,13 +312,15 @@ def compute_compensation(cov2d_mat: Tensor, filter_2d_kernel_size: float):
     return torch.sqrt(torch.clamp(det_nomin / det_denom, min=0))
 
 
-def compute_cov2d_bounds(cov2d_mat: Tensor):
+def compute_cov2d_bounds(cov2d_mat: Tensor, cov_valid: Optional[Tensor] = None):
     """
     param: cov2d matrix (*, 2, 2)
     returns: conic parameters (*, 3)
     """
     det_all = cov2d_mat[..., 0, 0] * cov2d_mat[..., 1, 1] - cov2d_mat[..., 0, 1] ** 2
     valid = det_all != 0
+    if cov_valid is not None:
+        valid = valid & cov_valid
     # det = torch.clamp(det, min=eps)
     det = det_all[valid]
     cov2d = cov2d_mat[valid]
@@ -326,7 +347,7 @@ def project_pix(fxfy, p_view, center, eps=1e-6):
     fx, fy = fxfy
     cx, cy = center
 
-    rw = 1.0 / (p_view[..., 2] + 1e-6)
+    rw = 1.0 / (p_view[..., 2] + eps)
     p_proj = (p_view[..., 0] * rw, p_view[..., 1] * rw)
     u, v = (p_proj[0] * fx + cx, p_proj[1] * fy + cy)
     return torch.stack([u, v], dim=-1)
@@ -388,9 +409,9 @@ def project_gaussians_forward(
     p_view, is_close = clip_near_plane(means3d, viewmat, clip_thresh)
     cov3d = scale_rot_to_cov3d(scales, glob_scale, quats)
     cov2d, compensation = project_cov3d_ewa(
-        means3d, cov3d, viewmat, fx, fy, tan_fovx, tan_fovy, filter_2d_kernel_size
+        means3d, cov3d, viewmat, fx, fy, tan_fovx, tan_fovy, filter_2d_kernel_size, ~is_close
     )
-    conic, radius, det_valid = compute_cov2d_bounds(cov2d)
+    conic, radius, det_valid = compute_cov2d_bounds(cov2d, ~is_close)
     xys = project_pix((fx, fy), p_view, (cx, cy))
     tile_min, tile_max = get_tile_bbox(xys, radius, tile_bounds, block_width)
     tile_area = (tile_max[..., 0] - tile_min[..., 0]) * (
