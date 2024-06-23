@@ -519,10 +519,10 @@ __global__ void hit_pixel_count_forward(
             const float vis = alpha * T;
 
             // LightGaussian
-            gaussian_count[g]++;
-            important_opacity_score[g] += opac;
-            important_alpha_score[g] += alpha;
-            important_visibility_score[g] += vis;
+            atomicAdd(&gaussian_count[g], 1);
+            atomicAdd(&important_opacity_score[g], opac);
+            atomicAdd(&important_alpha_score[g], alpha);
+            atomicAdd(&important_visibility_score[g], vis);
 
             T = next_T;
         }
