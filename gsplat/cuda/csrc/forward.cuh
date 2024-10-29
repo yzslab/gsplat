@@ -38,6 +38,7 @@ __global__ void rasterize_forward(
     float* __restrict__ final_Ts,
     int* __restrict__ final_index,
     float3* __restrict__ out_img,
+    uint8_t* __restrict__ has_hit_any_pixels,
     const float3& __restrict__ background
 );
 
@@ -69,6 +70,7 @@ __global__ void nd_rasterize_forward(
     float* __restrict__ final_Ts,
     int* __restrict__ final_index,
     float* __restrict__ out_img,
+    uint8_t* __restrict__ has_hit_any_pixels,
     const float* __restrict__ background
 );
 
@@ -119,6 +121,7 @@ __global__ void rasterize_forward(
     float* __restrict__ final_Ts,
     int* __restrict__ final_index,
     float3* __restrict__ out_img,
+    uint8_t* __restrict__ has_hit_any_pixels,
     const float3& __restrict__ background
 );
 
@@ -135,5 +138,6 @@ __global__ void nd_rasterize_forward(
     float* __restrict__ final_Ts,
     int* __restrict__ final_index,
     float* __restrict__ out_img,
+    uint8_t* __restrict__ has_hit_any_pixels,
     const float* __restrict__ background
 );

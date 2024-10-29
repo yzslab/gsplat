@@ -186,6 +186,7 @@ __global__ void nd_rasterize_forward(
     float* __restrict__ final_Ts,
     int* __restrict__ final_index,
     float* __restrict__ out_img,
+    uint8_t* __restrict__ has_hit_any_pixels,
     const float* __restrict__ background
 ) {
     auto block = cg::this_thread_block();
@@ -280,6 +281,8 @@ __global__ void nd_rasterize_forward(
             }
             T = next_T;
             cur_idx = batch_start + t;
+
+            has_hit_any_pixels[g] = 1;
         }
     }
 
@@ -306,6 +309,7 @@ __global__ void rasterize_forward(
     float* __restrict__ final_Ts,
     int* __restrict__ final_index,
     float3* __restrict__ out_img,
+    uint8_t* __restrict__ has_hit_any_pixels,
     const float3& __restrict__ background
 ) {
     // each thread draws one pixel, but also timeshares caching gaussians in a
@@ -403,6 +407,8 @@ __global__ void rasterize_forward(
             pix_out.z = pix_out.z + c.z * vis;
             T = next_T;
             cur_idx = batch_start + t;
+
+            has_hit_any_pixels[g] = 1;
         }
     }
 

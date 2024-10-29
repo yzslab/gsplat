@@ -379,7 +379,7 @@ torch::Tensor get_tile_bin_edges_tensor(
     return tile_bins;
 }
 
-std::tuple<torch::Tensor, torch::Tensor, torch::Tensor>
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
 rasterize_forward_tensor(
     const std::tuple<int, int, int> tile_bounds,
     const std::tuple<int, int, int> block,
@@ -429,6 +429,9 @@ rasterize_forward_tensor(
     torch::Tensor final_idx = torch::zeros(
         {img_height, img_width}, xys.options().dtype(torch::kInt32)
     );
+    torch::Tensor has_hit_any_pixels = torch::zeros(
+        {xys.size(0)}, xys.options().dtype(torch::kUInt8)
+    );
 
     rasterize_forward<<<tile_bounds_dim3, block_dim3>>>(
         tile_bounds_dim3,
@@ -442,10 +445,11 @@ rasterize_forward_tensor(
         final_Ts.contiguous().data_ptr<float>(),
         final_idx.contiguous().data_ptr<int>(),
         (float3 *)out_img.contiguous().data_ptr<float>(),
+        has_hit_any_pixels.contiguous().data_ptr<uint8_t>(),
         *(float3 *)background.contiguous().data_ptr<float>()
     );
 
-    return std::make_tuple(out_img, final_Ts, final_idx);
+    return std::make_tuple(out_img, final_Ts, final_idx, has_hit_any_pixels);
 }
 
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
@@ -517,7 +521,7 @@ hit_pixel_count_forward_tensor(
 }
 
 
-std::tuple<torch::Tensor, torch::Tensor, torch::Tensor>
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
 nd_rasterize_forward_tensor(
     const std::tuple<int, int, int> tile_bounds,
     const std::tuple<int, int, int> block,
@@ -567,6 +571,10 @@ nd_rasterize_forward_tensor(
     torch::Tensor final_idx = torch::zeros(
         {img_height, img_width}, xys.options().dtype(torch::kInt32)
     );
+    torch::Tensor has_hit_any_pixels = torch::zeros(
+        {xys.size(0)}, xys.options().dtype(torch::kUInt8)
+    );
+
     const int B = block_dim3.x * block_dim3.y;
     const uint32_t shared_mem = B*sizeof(int) + B*sizeof(float3) + B*sizeof(float3) + B*channels*sizeof(half);
     if(cudaFuncSetAttribute(nd_rasterize_forward, cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem) != cudaSuccess){
@@ -586,10 +594,11 @@ nd_rasterize_forward_tensor(
         final_Ts.contiguous().data_ptr<float>(),
         final_idx.contiguous().data_ptr<int>(),
         out_img.contiguous().data_ptr<float>(),
+        has_hit_any_pixels.contiguous().data_ptr<uint8_t>(),
         background.contiguous().data_ptr<float>()
     );
 
-    return std::make_tuple(out_img, final_Ts, final_idx);
+    return std::make_tuple(out_img, final_Ts, final_idx, has_hit_any_pixels);
 }
 
 

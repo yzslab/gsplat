@@ -148,7 +148,7 @@ class _RasterizeGaussians(Function):
             else:
                 rasterize_fn = _C.nd_rasterize_forward
 
-            out_img, final_Ts, final_idx = rasterize_fn(
+            out_img, final_Ts, final_idx, has_hit_any_pixels = rasterize_fn(
                 tile_bounds,
                 block,
                 img_size,
@@ -160,6 +160,8 @@ class _RasterizeGaussians(Function):
                 opacity,
                 background,
             )
+
+        has_hit_any_pixels = has_hit_any_pixels > 0
 
         ctx.img_width = img_width
         ctx.img_height = img_height
@@ -175,6 +177,7 @@ class _RasterizeGaussians(Function):
             background,
             final_Ts,
             final_idx,
+            has_hit_any_pixels,
         )
 
         if return_alpha:
@@ -202,6 +205,7 @@ class _RasterizeGaussians(Function):
             background,
             final_Ts,
             final_idx,
+            has_hit_any_pixels,
         ) = ctx.saved_tensors
 
         if num_intersects < 1:
@@ -242,6 +246,9 @@ class _RasterizeGaussians(Function):
         # - "AbsGS: Recovering Fine Details for 3D Gaussian Splatting"
         # - "EfficientGS: Streamlining Gaussian Splatting for Large-Scale High-Resolution Scene Representation"
         xys.absgrad = v_xy_abs
+
+        # Accurate visibility filter
+        xys.has_hit_any_pixels = has_hit_any_pixels
 
         return (
             v_xy,  # xys
