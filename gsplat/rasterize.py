@@ -126,6 +126,7 @@ class _RasterizeGaussians(Function):
             tile_bins = torch.zeros(0, 2, device=xys.device)
             final_Ts = torch.zeros(img_height, img_width, device=xys.device)
             final_idx = torch.zeros(img_height, img_width, device=xys.device)
+            has_hit_any_pixels = torch.zeros((xys.shape[0],), device=xys.device, dtype=torch.uint8)
         else:
             (
                 isect_ids_unsorted,
