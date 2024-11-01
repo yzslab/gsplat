@@ -358,6 +358,10 @@ __global__ void project_gaussians_backward_kernel(
     float3 p_world = means3d[idx];
     float fx = intrins.x;
     float fy = intrins.y;
+    float cx = intrins.z;
+    float cy = intrins.w;
+    float tan_fovx = 0.5 * img_size.x / fx;
+    float tan_fovy = 0.5 * img_size.y / fy;
     float3 p_view = transform_4x3(viewmat, p_world);
     // get v_mean3d from v_xy
     v_mean3d[idx] = transform_4x3_rot_only_transposed(
@@ -382,6 +386,12 @@ __global__ void project_gaussians_backward_kernel(
         viewmat,
         fx,
         fy,
+        cx,
+        cy,
+        img_size.x,
+        img_size.y,
+        tan_fovx,
+        tan_fovy,
         v_cov2d[idx],
         v_mean3d[idx],
         &(v_cov3d[6 * idx])
@@ -404,6 +414,12 @@ __device__ void project_cov3d_ewa_vjp(
     const float* __restrict__ viewmat,
     const float fx,
     const float fy,
+    const float cx,
+    const float cy,
+    const int width,
+    const int height,
+    const float tan_fovx,
+    const float tan_fovy,
     const float3& __restrict__ v_cov2d,
     float3& __restrict__ v_mean3d,
     float* __restrict__ v_cov3d
@@ -419,6 +435,16 @@ __device__ void project_cov3d_ewa_vjp(
     // clang-format on
     glm::vec3 p = glm::vec3(viewmat[3], viewmat[7], viewmat[11]);
     glm::vec3 t = W * glm::vec3(mean3d.x, mean3d.y, mean3d.z) + p;
+
+    // clip so that the covariance
+    float lim_x_pos = (width - cx) / fx + 0.3f * tan_fovx;
+    float lim_x_neg = cx / fx + 0.3f * tan_fovx;
+    float lim_y_pos = (height - cy) / fy + 0.3f * tan_fovy;
+    float lim_y_neg = cy / fy + 0.3f * tan_fovy;
+
+    t.x = t.z * std::min(lim_x_pos, std::max(-lim_x_neg, t.x / t.z));
+    t.y = t.z * std::min(lim_y_pos, std::max(-lim_y_neg, t.y / t.z));
+
     float rz = 1.f / t.z;
     float rz2 = rz * rz;
 

@@ -80,6 +80,12 @@ __device__ void project_cov3d_ewa_vjp(
     const float *viewmat,
     const float fx,
     const float fy,
+    const float cx,
+    const float cy,
+    const int width,
+    const int height,
+    const float tan_fovx,
+    const float tan_fovy,
     const float3 &v_cov2d,
     float3 &v_mean3d,
     float *v_cov3d

@@ -46,10 +46,9 @@ def test_project_gaussians_forward():
     quats = torch.randn((num_points, 4), device=device)
     quats /= torch.linalg.norm(quats, dim=-1, keepdim=True)
 
-    H, W = 512, 512
-    cx, cy = W / 2, H / 2
-    # 90 degree FOV
-    fx, fy = W / 2, W / 2
+    H, W = 856, 2048
+    cx, cy = 993.66348235, 431.53556501
+    fx, fy = 863.29419216, 861.9258833
     clip_thresh = 0.01
     viewmat = torch.tensor(
         [
@@ -132,10 +131,9 @@ def test_project_gaussians_backward():
     quats = torch.randn((num_points, 4), device=device)
     quats /= torch.linalg.norm(quats, dim=-1, keepdim=True)
 
-    H, W = 512, 512
-    cx, cy = W / 2, H / 2
-    # 90 degree FOV
-    fx, fy = W / 2, W / 2
+    H, W = 856, 2048
+    cx, cy = 993.66348235, 431.53556501
+    fx, fy = 863.29419216, 861.9258833
     clip_thresh = 0.01
     filter_2d_kernel_size = 0.1
     viewmat = torch.tensor(
@@ -231,6 +229,10 @@ def test_project_gaussians_backward():
             viewmat,
             fx,
             fy,
+            cx,
+            cy,
+            W,
+            H,
             tan_fovx,
             tan_fovy,
             filter_2d_kernel_size,

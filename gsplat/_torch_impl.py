@@ -245,6 +245,10 @@ def project_cov3d_ewa(
     viewmat: Tensor,
     fx: float,
     fy: float,
+    cx: float,
+    cy: float,
+    width: int,
+    height: int,
     tan_fovx: float,
     tan_fovy: float,
     filter_2d_kernel_size: float,
@@ -264,10 +268,17 @@ def project_cov3d_ewa(
     rz = 1.0 / t[..., 2]  # (...,)
     rz2 = rz**2  # (...,)
 
-    lim_x = 1.3 * torch.tensor([tan_fovx], device=mean3d.device)
-    lim_y = 1.3 * torch.tensor([tan_fovy], device=mean3d.device)
-    x_clamp = t[..., 2] * torch.clamp(t[..., 0] * rz, min=-lim_x, max=lim_x)
-    y_clamp = t[..., 2] * torch.clamp(t[..., 1] * rz, min=-lim_y, max=lim_y)
+    tx = t[..., 0]
+    ty = t[..., 1]
+    tz = t[..., 2]
+
+    lim_x_pos = (width - cx) / fx + 0.3 * tan_fovx
+    lim_x_neg = cx / fx + 0.3 * tan_fovx
+    lim_y_pos = (height - cy) / fy + 0.3 * tan_fovy
+    lim_y_neg = cy / fy + 0.3 * tan_fovy
+    x_clamp = tz * torch.clamp(tx / tz, min=-lim_x_neg, max=lim_x_pos)
+    y_clamp = tz * torch.clamp(ty / tz, min=-lim_y_neg, max=lim_y_pos)
+
     t = torch.stack([x_clamp, y_clamp, t[..., 2]], dim=-1)
 
     O = torch.zeros_like(rz)
@@ -409,7 +420,13 @@ def project_gaussians_forward(
     p_view, is_close = clip_near_plane(means3d, viewmat, clip_thresh)
     cov3d = scale_rot_to_cov3d(scales, glob_scale, quats)
     cov2d, compensation = project_cov3d_ewa(
-        means3d, cov3d, viewmat, fx, fy, tan_fovx, tan_fovy, filter_2d_kernel_size, ~is_close
+        means3d, cov3d,
+        viewmat,
+        fx, fy, cx, cy,
+        img_size[0], img_size[1],
+        tan_fovx, tan_fovy,
+        filter_2d_kernel_size,
+        ~is_close,
     )
     conic, radius, det_valid = compute_cov2d_bounds(cov2d, ~is_close)
     xys = project_pix((fx, fy), p_view, (cx, cy))
