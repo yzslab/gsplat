@@ -24,6 +24,7 @@ from .rendering import (
     rasterization_2dgs_inria_wrapper,
 )
 from .strategy import DefaultStrategy, MCMCStrategy, Strategy
+from .v0_interfaces import project_gaussians
 from .version import __version__
 
 all = [
@@ -49,5 +50,6 @@ all = [
     "rasterize_to_indices_in_range_2dgs",
     "accumulate_2dgs",
     "rasterization_2dgs_inria_wrapper",
+    "project_gaussians",
     "__version__",
 ]
