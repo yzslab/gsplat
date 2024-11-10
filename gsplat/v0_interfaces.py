@@ -509,7 +509,7 @@ def hit_pixel_count(
     )
     isect_offsets = wrapper.isect_offset_encode(isect_ids, 1, tile_width, tile_height)
 
-    return rasterize_to_visibilities(
+    n_hit_pixels, opacity_scores, alpha_scores, visibility_scores = rasterize_to_visibilities(
         means2d=means2d,
         conics=conics,
         opacities=opacities,
@@ -521,6 +521,8 @@ def hit_pixel_count(
         masks=None,
         packed=False,
     )
+
+    return n_hit_pixels.squeeze(0), opacity_scores.squeeze(0), alpha_scores.squeeze(0), visibility_scores.squeeze(0)
 
 
 def spherical_harmonics(

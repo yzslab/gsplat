@@ -191,13 +191,13 @@ call_kernel(
     dim3 blocks = {C, tile_height, tile_width};
 
     torch::Tensor n_hit_pixels =
-        torch::zeros({N}, means2d.options().dtype(torch::kInt32));
+        torch::zeros({C, N}, means2d.options().dtype(torch::kInt32));
     torch::Tensor opacity_scores =
-        torch::zeros({N}, means2d.options().dtype(torch::kFloat32));
+        torch::zeros({C, N}, means2d.options().dtype(torch::kFloat32));
     torch::Tensor alpha_scores =
-        torch::zeros({N}, means2d.options().dtype(torch::kFloat32));
+        torch::zeros({C, N}, means2d.options().dtype(torch::kFloat32));
     torch::Tensor visibility_scores =
-        torch::zeros({N}, means2d.options().dtype(torch::kFloat32));
+        torch::zeros({C, N}, means2d.options().dtype(torch::kFloat32));
 
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     const uint32_t shared_mem =
