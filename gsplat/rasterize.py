@@ -126,7 +126,7 @@ class _RasterizeGaussians(Function):
             tile_bins = torch.zeros(0, 2, device=xys.device)
             final_Ts = torch.zeros(img_height, img_width, device=xys.device)
             final_idx = torch.zeros(img_height, img_width, device=xys.device)
-            has_hit_any_pixels = torch.zeros((xys.shape[0],), device=xys.device, dtype=torch.uint8)
+            has_hit_any_pixels = torch.zeros((xys.shape[0],), device=xys.device, dtype=torch.bool)
         else:
             (
                 isect_ids_unsorted,
@@ -162,8 +162,6 @@ class _RasterizeGaussians(Function):
                 background,
             )
 
-        has_hit_any_pixels = has_hit_any_pixels > 0
-
         ctx.img_width = img_width
         ctx.img_height = img_height
         ctx.num_intersects = num_intersects
@@ -178,8 +176,10 @@ class _RasterizeGaussians(Function):
             background,
             final_Ts,
             final_idx,
-            has_hit_any_pixels,
         )
+
+        # Accurate visibility filter
+        xys.has_hit_any_pixels = has_hit_any_pixels
 
         if return_alpha:
             out_alpha = 1 - final_Ts
@@ -206,7 +206,6 @@ class _RasterizeGaussians(Function):
             background,
             final_Ts,
             final_idx,
-            has_hit_any_pixels,
         ) = ctx.saved_tensors
 
         if num_intersects < 1:
@@ -247,9 +246,6 @@ class _RasterizeGaussians(Function):
         # - "AbsGS: Recovering Fine Details for 3D Gaussian Splatting"
         # - "EfficientGS: Streamlining Gaussian Splatting for Large-Scale High-Resolution Scene Representation"
         xys.absgrad = v_xy_abs
-
-        # Accurate visibility filter
-        xys.has_hit_any_pixels = has_hit_any_pixels
 
         return (
             v_xy,  # xys

@@ -430,7 +430,7 @@ rasterize_forward_tensor(
         {img_height, img_width}, xys.options().dtype(torch::kInt32)
     );
     torch::Tensor has_hit_any_pixels = torch::zeros(
-        {xys.size(0)}, xys.options().dtype(torch::kUInt8)
+        {xys.size(0)}, xys.options().dtype(torch::kBool)
     );
 
     rasterize_forward<<<tile_bounds_dim3, block_dim3>>>(
@@ -445,7 +445,7 @@ rasterize_forward_tensor(
         final_Ts.contiguous().data_ptr<float>(),
         final_idx.contiguous().data_ptr<int>(),
         (float3 *)out_img.contiguous().data_ptr<float>(),
-        has_hit_any_pixels.contiguous().data_ptr<uint8_t>(),
+        has_hit_any_pixels.contiguous().data_ptr<bool>(),
         *(float3 *)background.contiguous().data_ptr<float>()
     );
 
@@ -572,7 +572,7 @@ nd_rasterize_forward_tensor(
         {img_height, img_width}, xys.options().dtype(torch::kInt32)
     );
     torch::Tensor has_hit_any_pixels = torch::zeros(
-        {xys.size(0)}, xys.options().dtype(torch::kUInt8)
+        {xys.size(0)}, xys.options().dtype(torch::kBool)
     );
 
     const int B = block_dim3.x * block_dim3.y;
@@ -594,7 +594,7 @@ nd_rasterize_forward_tensor(
         final_Ts.contiguous().data_ptr<float>(),
         final_idx.contiguous().data_ptr<int>(),
         out_img.contiguous().data_ptr<float>(),
-        has_hit_any_pixels.contiguous().data_ptr<uint8_t>(),
+        has_hit_any_pixels.contiguous().data_ptr<bool>(),
         background.contiguous().data_ptr<float>()
     );
 
