@@ -103,22 +103,26 @@ def project_gaussians(
         near_plane=clip_thresh,
     )
 
-    tile_width = math.ceil(img_width / float(block_width))
-    tile_height = math.ceil(img_height / float(block_width))
-    tiles_per_gauss, isect_ids, flatten_ids = wrapper.isect_tiles(
-        means2d,
-        radii,
-        depths,
-        block_width,
-        tile_width,
-        tile_height,
-        packed=False,
-        n_cameras=1,
-        camera_ids=None,
-        gaussian_ids=None,
-    )
+    # tile_width = math.ceil(img_width / float(block_width))
+    # tile_height = math.ceil(img_height / float(block_width))
+    # tiles_per_gauss, isect_ids, flatten_ids = wrapper.isect_tiles(
+    #     means2d,
+    #     radii,
+    #     depths,
+    #     block_width,
+    #     tile_width,
+    #     tile_height,
+    #     packed=False,
+    #     n_cameras=1,
+    #     camera_ids=None,
+    #     gaussian_ids=None,
+    # )
 
-    return means2d.squeeze(0), depths.squeeze(0), radii.squeeze(0), conics.squeeze(0), compensations.squeeze(0), tiles_per_gauss.squeeze(0), None
+    squeezed_radii = radii.squeeze(0)
+
+    # The `num_tiles_hit` is not really used in gaussian-splatting-pl, so simply replace it with `radii`
+    # The `cov3d` is not used at all
+    return means2d.squeeze(0), depths.squeeze(0), squeezed_radii, conics.squeeze(0), compensations.squeeze(0), squeezed_radii, None
 
 
 class _RasterizeToPixels(torch.autograd.Function):
