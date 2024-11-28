@@ -581,27 +581,42 @@ def test_rasterize_to_pixels(test_data, channels: int):
 def test_sh(test_data, sh_degree: int):
     from gsplat.cuda._torch_impl import _spherical_harmonics
     from gsplat.cuda._wrapper import spherical_harmonics
+    from gsplat.sh_decomposed import spherical_harmonics_decomposed
 
     torch.manual_seed(42)
 
     N = 1000
     coeffs = torch.randn(N, (4 + 1) ** 2, 3, device=device)
+    # decompose coeffs
+    shs_dc = coeffs[:, :1, :]
+    shs_rest = coeffs[:, 1:, :]
+    
     dirs = torch.randn(N, 3, device=device)
     coeffs.requires_grad = True
+    shs_dc.requires_grad = True
+    shs_rest.requires_grad = True
     dirs.requires_grad = True
 
     colors = spherical_harmonics(sh_degree, dirs, coeffs)
+    colors_decomposed = spherical_harmonics_decomposed(sh_degree, dirs, shs_dc, shs_rest)
     _colors = _spherical_harmonics(sh_degree, dirs, coeffs)
     torch.testing.assert_close(colors, _colors, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(colors_decomposed, _colors, rtol=1e-4, atol=1e-4)
 
     v_colors = torch.randn_like(colors)
 
     v_coeffs, v_dirs = torch.autograd.grad(
         (colors * v_colors).sum(), (coeffs, dirs), retain_graph=True, allow_unused=True
     )
+    v_dc_decomposed, v_rest_decomposed, v_dirs_decomposed = torch.autograd.grad(
+        (colors_decomposed * v_colors).sum(), (shs_dc, shs_rest, dirs), retain_graph=True, allow_unused=True
+    )
+    v_coeffs_decomposed = torch.concat([v_dc_decomposed, v_rest_decomposed], dim=1)
     _v_coeffs, _v_dirs = torch.autograd.grad(
         (_colors * v_colors).sum(), (coeffs, dirs), retain_graph=True, allow_unused=True
     )
     torch.testing.assert_close(v_coeffs, _v_coeffs, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(v_coeffs_decomposed, _v_coeffs, rtol=1e-4, atol=1e-4)
     if sh_degree > 0:
         torch.testing.assert_close(v_dirs, _v_dirs, rtol=1e-4, atol=1e-4)
+        torch.testing.assert_close(v_dirs_decomposed, _v_dirs, rtol=1e-4, atol=1e-4)

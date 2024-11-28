@@ -9,6 +9,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 
     m.def("compute_sh_fwd", &gsplat::compute_sh_fwd_tensor);
     m.def("compute_sh_bwd", &gsplat::compute_sh_bwd_tensor);
+    
+    m.def("compute_sh_decomposed_fwd", &gsplat::compute_sh_decomposed_fwd_tensor);
+    m.def("compute_sh_decomposed_bwd", &gsplat::compute_sh_decomposed_bwd_tensor);
 
     m.def(
         "quat_scale_to_covar_preci_fwd",
