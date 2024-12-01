@@ -202,7 +202,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor> call_kern
     const uint32_t tile_size,
     // intersections
     const torch::Tensor &tile_offsets, // [C, tile_height, tile_width]
-    const torch::Tensor &flatten_ids   // [n_isects]
+    const torch::Tensor &flatten_ids,   // [n_isects]
+    const uint32_t n_isects
 ) {
     GSPLAT_DEVICE_GUARD(means2d);
     GSPLAT_CHECK_INPUT(means2d);
@@ -224,7 +225,6 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor> call_kern
     uint32_t channels = colors.size(-1);
     uint32_t tile_height = tile_offsets.size(1);
     uint32_t tile_width = tile_offsets.size(2);
-    uint32_t n_isects = flatten_ids.size(0);
 
     // Each block covers a tile on the image. In total there are
     // C * tile_height * tile_width blocks.
@@ -309,7 +309,8 @@ rasterize_to_pixels_fwd_tensor(
     const uint32_t tile_size,
     // intersections
     const torch::Tensor &tile_offsets, // [C, tile_height, tile_width]
-    const torch::Tensor &flatten_ids   // [n_isects]
+    const torch::Tensor &flatten_ids,   // [n_isects]
+    const uint32_t n_isects
 ) {
     GSPLAT_CHECK_INPUT(colors);
     uint32_t channels = colors.size(-1);
@@ -327,7 +328,8 @@ rasterize_to_pixels_fwd_tensor(
             image_height,                                                      \
             tile_size,                                                         \
             tile_offsets,                                                      \
-            flatten_ids                                                        \
+            flatten_ids,                                                       \
+            n_isects                                                           \
         );
 
     // TODO: an optimization can be done by passing the actual number of
