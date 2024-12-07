@@ -89,8 +89,8 @@ def isect_tiles_tile_based_culling(
 
 @torch.no_grad()
 def isect_offset_encode_tile_based_culling(
-    isect_ids: Tensor, n_cameras: int, tile_width: int, tile_height: int
-) -> Tuple[Tensor, int]:
+    isect_ids: Tensor, flatten_ids: Tensor, n_cameras: int, tile_width: int, tile_height: int
+) -> Tuple[Tensor, Tensor]:
     """Encodes intersection ids to offsets.
 
     Args:
@@ -100,10 +100,14 @@ def isect_offset_encode_tile_based_culling(
         tile_height: Tile height.
 
     Returns:
-        Offsets. [C, tile_height, tile_width]
-        n_isects. [1]
+        offsets. [C, tile_height, tile_width]
+        flatten_ids. [actual_n_isects]
     """
-    offsets, n_isects = _make_lazy_cuda_func("isect_offset_encode_tile_based_culling")(
+
+    offsets, actual_n_isects = _make_lazy_cuda_func("isect_offset_encode_tile_based_culling")(
         isect_ids.contiguous(), n_cameras, tile_width, tile_height
     )
-    return offsets, n_isects.item()
+
+    actual_n_isects = actual_n_isects.item()
+
+    return offsets, flatten_ids[:actual_n_isects]

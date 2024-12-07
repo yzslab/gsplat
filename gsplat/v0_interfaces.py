@@ -143,7 +143,6 @@ class _RasterizeToPixels(torch.autograd.Function):
         isect_offsets: Tensor,  # [C, tile_height, tile_width]
         flatten_ids: Tensor,  # [n_isects]
         absgrad: bool,
-        actual_n_isects: int,
     ) -> Tuple[Tensor, Tensor]:
         render_colors, render_alphas, last_ids, has_hit_any_pixels = wrapper._make_lazy_cuda_func(
             "rasterize_to_pixels_fwd"
@@ -159,7 +158,6 @@ class _RasterizeToPixels(torch.autograd.Function):
             tile_size,
             isect_offsets,
             flatten_ids,
-            actual_n_isects,
         )
 
         has_hit_any_pixels = has_hit_any_pixels.squeeze(0)
@@ -180,7 +178,6 @@ class _RasterizeToPixels(torch.autograd.Function):
         ctx.height = height
         ctx.tile_size = tile_size
         ctx.absgrad = absgrad
-        ctx.actual_n_isects = actual_n_isects
 
         # TODO: as a return value
         means2d.has_hit_any_pixels = has_hit_any_pixels
@@ -211,7 +208,6 @@ class _RasterizeToPixels(torch.autograd.Function):
         height = ctx.height
         tile_size = ctx.tile_size
         absgrad = ctx.absgrad
-        actual_n_isects = ctx.actual_n_isects
 
         (
             v_means2d_abs,
@@ -231,7 +227,6 @@ class _RasterizeToPixels(torch.autograd.Function):
             tile_size,
             isect_offsets,
             flatten_ids,
-            actual_n_isects,
             render_alphas,
             last_ids,
             v_render_colors.contiguous(),
@@ -262,7 +257,6 @@ class _RasterizeToPixels(torch.autograd.Function):
             None,
             None,
             None,
-            None,
         )
 
 
@@ -280,7 +274,6 @@ def rasterize_to_pixels(
     masks: Optional[Tensor] = None,  # [C, tile_height, tile_width]
     packed: bool = False,
     absgrad: bool = False,
-    actual_n_isects: int = None,
 ) -> Tuple[Tensor, Tensor]:
     """Rasterizes Gaussians to pixels.
 
@@ -383,9 +376,6 @@ def rasterize_to_pixels(
         tile_width * tile_size >= image_width
     ), f"Assert Failed: {tile_width} * {tile_size} >= {image_width}"
 
-    if actual_n_isects is None:
-        actual_n_isects = flatten_ids.shape[0]
-
     render_colors, render_alphas = _RasterizeToPixels.apply(
         means2d.contiguous(),
         conics.contiguous(),
@@ -399,7 +389,6 @@ def rasterize_to_pixels(
         isect_offsets.contiguous(),
         flatten_ids.contiguous(),
         absgrad,
-        actual_n_isects,
     )
 
     if padded_channels > 0:

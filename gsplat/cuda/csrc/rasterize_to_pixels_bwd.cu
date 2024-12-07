@@ -298,7 +298,6 @@ call_kernel_with_dim(
     // intersections
     const torch::Tensor &tile_offsets, // [C, tile_height, tile_width]
     const torch::Tensor &flatten_ids,  // [n_isects]
-    const uint32_t n_isects,
     // forward outputs
     const torch::Tensor &render_alphas, // [C, image_height, image_width, 1]
     const torch::Tensor &last_ids,      // [C, image_height, image_width]
@@ -331,6 +330,7 @@ call_kernel_with_dim(
 
     uint32_t C = tile_offsets.size(0);         // number of cameras
     uint32_t N = packed ? 0 : means2d.size(1); // number of gaussians
+    uint32_t n_isects = flatten_ids.size(0);
     uint32_t COLOR_DIM = colors.size(-1);
     uint32_t tile_height = tile_offsets.size(1);
     uint32_t tile_width = tile_offsets.size(2);
@@ -428,7 +428,6 @@ rasterize_to_pixels_bwd_tensor(
     // intersections
     const torch::Tensor &tile_offsets, // [C, tile_height, tile_width]
     const torch::Tensor &flatten_ids,  // [n_isects]
-    const uint32_t n_isects,
     // forward outputs
     const torch::Tensor &render_alphas, // [C, image_height, image_width, 1]
     const torch::Tensor &last_ids,      // [C, image_height, image_width]
@@ -456,7 +455,6 @@ rasterize_to_pixels_bwd_tensor(
             tile_size,                                                         \
             tile_offsets,                                                      \
             flatten_ids,                                                       \
-            n_isects,                                                          \
             render_alphas,                                                     \
             last_ids,                                                          \
             v_render_colors,                                                   \
