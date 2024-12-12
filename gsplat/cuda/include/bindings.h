@@ -558,6 +558,23 @@ rasterize_to_visibilities_tensor(
     const torch::Tensor &flatten_ids   // [n_isects]
 );
 
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+rasterize_to_weights_tensor(
+    // Gaussian parameters
+    const torch::Tensor &means2d,                   // [C, N, 2] or [nnz, 2]
+    const torch::Tensor &conics,                    // [C, N, 3] or [nnz, 3]
+    const torch::Tensor &opacities,                 // [C, N]  or [nnz]
+    const at::optional<torch::Tensor> &masks, // [C, tile_height, tile_width]
+    // image size
+    const uint32_t image_width,
+    const uint32_t image_height,
+    const uint32_t tile_size,
+    // intersections
+    const torch::Tensor &tile_offsets, // [C, tile_height, tile_width]
+    const torch::Tensor &flatten_ids,   // [n_isects]
+    const torch::Tensor &pixel_weights  // [C, H, W]
+);
+
 } // namespace gsplat
 
 #endif // GSPLAT_CUDA_BINDINGS_H
