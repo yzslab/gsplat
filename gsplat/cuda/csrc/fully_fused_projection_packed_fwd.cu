@@ -34,6 +34,7 @@ __global__ void fully_fused_projection_packed_fwd_kernel(
     const T near_plane,
     const T far_plane,
     const T radius_clip,
+    const T radius_clip_from,
     const int32_t
         *__restrict__ block_accum,    // [C * blocks_per_row] packing helper
     const CameraModelType camera_model,
@@ -185,7 +186,7 @@ __global__ void fully_fused_projection_packed_fwd_kernel(
         T v2 = b - sqrt(max(0.1f, b * b - det));
         radius = ceil(3.f * sqrt(max(v1, v2)));
 
-        if (radius <= radius_clip) {
+        if (radius <= radius_clip && mean_c.z >= radius_clip_from) {
             valid = false;
         }
 
@@ -270,6 +271,7 @@ fully_fused_projection_packed_fwd_tensor(
     const float near_plane,
     const float far_plane,
     const float radius_clip,
+    const float radius_clip_from,
     const bool calc_compensations,
     const CameraModelType camera_model
 ) {
@@ -319,6 +321,7 @@ fully_fused_projection_packed_fwd_tensor(
                 near_plane,
                 far_plane,
                 radius_clip,
+                radius_clip_from,
                 nullptr,
                 camera_model,
                 block_cnts.data_ptr<int32_t>(),
@@ -369,6 +372,7 @@ fully_fused_projection_packed_fwd_tensor(
                 near_plane,
                 far_plane,
                 radius_clip,
+                radius_clip_from,
                 block_accum.data_ptr<int32_t>(),
                 camera_model,
                 nullptr,

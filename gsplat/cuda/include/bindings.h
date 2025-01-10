@@ -110,6 +110,7 @@ fully_fused_projection_fwd_tensor(
     const float near_plane,
     const float far_plane,
     const float radius_clip,
+    const float radius_clip_from,
     const bool calc_compensations,
     const CameraModelType camera_model
 );
@@ -313,6 +314,7 @@ fully_fused_projection_packed_fwd_tensor(
     const float near_plane,
     const float far_plane,
     const float radius_clip,
+    const float radius_clip_from,
     const bool calc_compensations,
     const CameraModelType camera_model
 );

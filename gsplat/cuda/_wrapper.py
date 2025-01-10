@@ -213,6 +213,7 @@ def fully_fused_projection(
     near_plane: float = 0.01,
     far_plane: float = 1e10,
     radius_clip: float = 0.0,
+    radius_clip_from: float = 0.0,
     packed: bool = False,
     sparse_grad: bool = False,
     calc_compensations: bool = False,
@@ -316,6 +317,7 @@ def fully_fused_projection(
             near_plane,
             far_plane,
             radius_clip,
+            radius_clip_from,
             sparse_grad,
             calc_compensations,
             camera_model,
@@ -334,6 +336,7 @@ def fully_fused_projection(
             near_plane,
             far_plane,
             radius_clip,
+            radius_clip_from,
             calc_compensations,
             camera_model,
         )
@@ -790,6 +793,7 @@ class _FullyFusedProjection(torch.autograd.Function):
         near_plane: float,
         far_plane: float,
         radius_clip: float,
+        radius_clip_from: float,
         calc_compensations: bool,
         camera_model: Literal["pinhole", "ortho", "fisheye"] = "pinhole",
     ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
@@ -813,6 +817,7 @@ class _FullyFusedProjection(torch.autograd.Function):
             near_plane,
             far_plane,
             radius_clip,
+            radius_clip_from,
             calc_compensations,
             camera_model_type,
         )
@@ -1049,6 +1054,7 @@ class _FullyFusedProjectionPacked(torch.autograd.Function):
         near_plane: float,
         far_plane: float,
         radius_clip: float,
+        radius_clip_from: float,
         sparse_grad: bool,
         calc_compensations: bool,
         camera_model: Literal["pinhole", "ortho", "fisheye"] = "pinhole",
@@ -1079,6 +1085,7 @@ class _FullyFusedProjectionPacked(torch.autograd.Function):
             near_plane,
             far_plane,
             radius_clip,
+            radius_clip_from,
             calc_compensations,
             camera_model_type,
         )

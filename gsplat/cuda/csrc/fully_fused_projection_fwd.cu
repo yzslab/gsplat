@@ -34,6 +34,7 @@ __global__ void fully_fused_projection_fwd_kernel(
     const T near_plane,
     const T far_plane,
     const T radius_clip,
+    const T radius_clip_from,
     const CameraModelType camera_model,
     // outputs
     int32_t *__restrict__ radii,  // [C, N]
@@ -170,7 +171,7 @@ __global__ void fully_fused_projection_fwd_kernel(
     // T v2 = b - sqrt(max(0.1f, b * b - det));
     // T radius = ceil(3.f * sqrt(max(v1, v2)));
 
-    if (radius <= radius_clip) {
+    if (radius <= radius_clip && mean_c.z >= radius_clip_from) {
         radii[idx] = 0;
         return;
     }
@@ -214,6 +215,7 @@ fully_fused_projection_fwd_tensor(
     const float near_plane,
     const float far_plane,
     const float radius_clip,
+    const float radius_clip_from,
     const bool calc_compensations,
     const CameraModelType camera_model
 ) {
@@ -263,6 +265,7 @@ fully_fused_projection_fwd_tensor(
                 near_plane,
                 far_plane,
                 radius_clip,
+                radius_clip_from,
                 camera_model,
                 radii.data_ptr<int32_t>(),
                 means2d.data_ptr<float>(),
