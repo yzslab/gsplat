@@ -218,22 +218,20 @@ __global__ void rasterize_to_pixels_bwd_kernel(
                     v_alpha += -T_final * ra * accum;
                 }
 
-                if (opac * vis <= 0.999f) {
-                    const S v_sigma = -opac * vis * v_alpha;
-                    v_conic_local = {
-                        0.5f * v_sigma * delta.x * delta.x,
-                        v_sigma * delta.x * delta.y,
-                        0.5f * v_sigma * delta.y * delta.y
-                    };
-                    v_xy_local = {
-                        v_sigma * (conic.x * delta.x + conic.y * delta.y),
-                        v_sigma * (conic.y * delta.x + conic.z * delta.y)
-                    };
-                    if (v_means2d_abs != nullptr) {
-                        v_xy_abs_local = {abs(v_xy_local.x), abs(v_xy_local.y)};
-                    }
-                    v_opacity_local = vis * v_alpha;
+                const S v_sigma = -alpha * v_alpha;
+                v_conic_local = {
+                    0.5f * v_sigma * delta.x * delta.x,
+                    v_sigma * delta.x * delta.y,
+                    0.5f * v_sigma * delta.y * delta.y
+                };
+                v_xy_local = {
+                    v_sigma * (conic.x * delta.x + conic.y * delta.y),
+                    v_sigma * (conic.y * delta.x + conic.z * delta.y)
+                };
+                if (v_means2d_abs != nullptr) {
+                    v_xy_abs_local = {abs(v_xy_local.x), abs(v_xy_local.y)};
                 }
+                v_opacity_local = vis * v_alpha;
 
                 GSPLAT_PRAGMA_UNROLL
                 for (uint32_t k = 0; k < COLOR_DIM; ++k) {

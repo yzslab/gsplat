@@ -149,10 +149,6 @@ __global__ void rasterize_to_pixels_fwd_kernel(
             }
 
             const S next_T = T * (1.0f - alpha);
-            if (next_T <= 1e-4) { // this pixel is done: exclusive
-                done = true;
-                break;
-            }
 
             int32_t g = id_batch[t];
             const S vis = alpha * T;
@@ -166,6 +162,11 @@ __global__ void rasterize_to_pixels_fwd_kernel(
             has_hit_any_pixels[g] = true;
 
             T = next_T;
+    
+            if (T <= 1e-4) { // this pixel is done: exclusive
+                done = true;
+                break;
+            }
         }
     }
 
