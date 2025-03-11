@@ -30,12 +30,12 @@ __device__ inline T max_contrib_power_rect_gaussian(
     const T x_min_diff = rect_min.x - mean[0];
     const T x_left = x_min_diff > 0.0f;  // on left side
     // const T x_left = mean[0] < rect_min.x;
-    const T not_in_x_range = x_left + (mean[0] > rect_max.x);  // on left or right side
+    const T not_in_x_range = x_left + static_cast<T>(mean[0] > rect_max.x);  // on left or right side
 
     const T y_min_diff = rect_min.y - mean[1];
     const T y_above =  y_min_diff > 0.0f;
     // const T y_above = mean[1] < rect_min.y;
-    const T not_in_y_range = y_above + (mean[1] > rect_max.y);
+    const T not_in_y_range = y_above + static_cast<T>(mean[1] > rect_max.y);
 
     max_pos = {mean[0], mean[1]};
     T max_contrib_power = 0.0f;
