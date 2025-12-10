@@ -143,7 +143,7 @@ class _RasterizeToPixels(torch.autograd.Function):
         isect_offsets: Tensor,  # [C, tile_height, tile_width]
         flatten_ids: Tensor,  # [n_isects]
         absgrad: bool,
-        gs2d_grad: bool,
+        gs2d_hessian: bool,
     ) -> Tuple[Tensor, Tensor]:
         render_colors, render_alphas, last_ids, has_hit_any_pixels = wrapper._make_lazy_cuda_func(
             "rasterize_to_pixels_fwd"
@@ -179,7 +179,7 @@ class _RasterizeToPixels(torch.autograd.Function):
         ctx.height = height
         ctx.tile_size = tile_size
         ctx.absgrad = absgrad
-        ctx.gs2d_grad = gs2d_grad
+        ctx.gs2d_hessian = gs2d_hessian
 
         # TODO: as a return value
         means2d.has_hit_any_pixels = has_hit_any_pixels
@@ -210,15 +210,15 @@ class _RasterizeToPixels(torch.autograd.Function):
         height = ctx.height
         tile_size = ctx.tile_size
         absgrad = ctx.absgrad
-        gs2d_grad = ctx.gs2d_grad
+        gs2d_hessian = ctx.gs2d_hessian
 
-        if gs2d_grad:
+        if gs2d_hessian:
             (
                 v_gs2d,
-                v_means2d,
-                v_conics,
-                v_colors,
-                v_opacities,
+                _,
+                _,
+                _,
+                _,
             ) = wrapper._make_lazy_cuda_func("rasterize_to_pixels_hessian_approximation_bwd")(
                 means2d.unsqueeze(0),
                 conics,
@@ -237,8 +237,13 @@ class _RasterizeToPixels(torch.autograd.Function):
                 v_render_alphas.contiguous(),
             )
 
-            means2d.gs2d_grad = v_gs2d.squeeze(0)
 
+            means2d.gs2d_hessian = v_gs2d.squeeze(0)
+
+            v_means2d = None
+            v_conics = None
+            v_colors = None
+            v_opacities = None
             v_backgrounds = None
         else:
             (
@@ -307,7 +312,7 @@ def rasterize_to_pixels(
     masks: Optional[Tensor] = None,  # [C, tile_height, tile_width]
     packed: bool = False,
     absgrad: bool = False,
-    gs2d_grad: bool = False,
+    gs2d_hessian: bool = False,
 ) -> Tuple[Tensor, Tensor]:
     """Rasterizes Gaussians to pixels.
 
@@ -423,7 +428,7 @@ def rasterize_to_pixels(
         isect_offsets.contiguous(),
         flatten_ids.contiguous(),
         absgrad,
-        gs2d_grad,
+        gs2d_hessian,
     )
 
     if padded_channels > 0:
