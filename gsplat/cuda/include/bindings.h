@@ -317,6 +317,24 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> compute_sh_decomposed_bw
     bool compute_v_dirs
 );
 
+torch::Tensor compute_sh_sc_decomposed_fwd_tensor(
+    const uint32_t degrees_to_use,
+    const torch::Tensor &dirs,              // [..., 3]
+    const torch::Tensor &dc,                // [..., 1, 1]
+    const torch::Tensor &coeffs,            // [..., K, 1]
+    const at::optional<torch::Tensor> masks // [...]
+);
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> compute_sh_sc_decomposed_bwd_tensor(
+    const uint32_t K,
+    const uint32_t degrees_to_use,
+    const torch::Tensor &dirs,               // [..., 3]
+    const torch::Tensor &dc,                 // [..., 1, 1]
+    const torch::Tensor &coeffs,             // [..., K, 1]
+    const at::optional<torch::Tensor> masks, // [...]
+    const torch::Tensor &v_colors,           // [..., 1]
+    bool compute_v_dirs
+);
+
 /****************************************************************************************
  * Packed Version
  ****************************************************************************************/
