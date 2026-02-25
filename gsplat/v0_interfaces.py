@@ -82,7 +82,7 @@ def project_gaussians(
             dim=0,
         )
 
-    radii, means2d, depths, conics, compensations = wrapper.fully_fused_projection(
+    radii, means2d, depths, conics, normals, compensations = wrapper.fully_fused_projection(
         means=means3d,
         covars=None,
         quats=quats,

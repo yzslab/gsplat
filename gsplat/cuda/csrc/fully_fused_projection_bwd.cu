@@ -38,12 +38,18 @@ __global__ void fully_fused_projection_bwd_kernel(
     // fwd outputs
     const int32_t *__restrict__ radii,   // [C, N]
     const T *__restrict__ conics,        // [C, N, 3]
+    const T *__restrict__ viewdirs,      // [C, N, 3]
+    const T *__restrict__ normals,       // [C, N, 3]
+    const int8_t *__restrict__ dir_multiplers,       // [C, N]
     const T *__restrict__ compensations, // [C, N] optional
     // grad outputs
-    const T *__restrict__ v_means2d,       // [C, N, 2]
-    const T *__restrict__ v_depths,        // [C, N]
-    const T *__restrict__ v_conics,        // [C, N, 3]
-    const T *__restrict__ v_compensations, // [C, N] optional
+    const T *__restrict__ v_means2d,           // [C, N, 2]
+    const T *__restrict__ v_depths,            // [C, N]
+    const T *__restrict__ v_conics,            // [C, N, 3]
+    const T *__restrict__ v_viewdirs,          // [C, N, 3]
+    const T *__restrict__ v_normals,           // [C, N, 3]
+    const T *__restrict__ v_planar_distances,  // [C, N]
+    const T *__restrict__ v_compensations,     // [C, N] optional
     // grad inputs
     T *__restrict__ v_means,   // [N, 3]
     T *__restrict__ v_covars,  // [N, 6] optional
@@ -196,6 +202,27 @@ __global__ void fully_fused_projection_bwd_kernel(
     );
     covar_world_to_cam_vjp(R, covar, v_covar_c, v_R, v_covar);
 
+    // vjp: planar distance
+    T dir_multipler = static_cast<T>(dir_multiplers[idx]);
+    auto normal_local = glm::make_vec3(normals + idx * 3);
+    auto v_normal_local = glm::make_vec3(v_normals + idx * 3);
+
+    T v_planar_distance_local = v_planar_distances[idx] * dir_multipler;
+    normal_local *= dir_multipler;
+    v_normal_local *= dir_multipler;
+
+    v_mean[0] += v_planar_distance_local * normal_local[0];
+    v_mean[1] += v_planar_distance_local * normal_local[1];
+    v_mean[2] += v_planar_distance_local * normal_local[2];
+
+    v_mean[0] += v_viewdirs[idx * 3];
+    v_mean[1] += v_viewdirs[idx * 3 + 1];
+    v_mean[2] += v_viewdirs[idx * 3 + 2];
+    
+    v_normal_local[0] += v_planar_distance_local * viewdirs[idx * 3];
+    v_normal_local[1] += v_planar_distance_local * viewdirs[idx * 3 + 1];
+    v_normal_local[2] += v_planar_distance_local * viewdirs[idx * 3 + 2];
+
     // #if __CUDA_ARCH__ >= 700
     // write out results with warp-level reduction
     auto warp = cg::tiled_partition<32>(cg::this_thread_block());
@@ -227,8 +254,8 @@ __global__ void fully_fused_projection_bwd_kernel(
         mat3<T> rotmat = quat_to_rotmat<T>(quat);
         vec4<T> v_quat(0.f);
         vec3<T> v_scale(0.f);
-        quat_scale_to_covar_vjp<T>(
-            quat, scale, rotmat, v_covar, v_quat, v_scale
+        quat_scale_to_normal_covar_vjp<T>(
+            quat, scale, rotmat, v_covar, v_normal_local, v_quat, v_scale
         );
         warpSum(v_quat, warp_group_g);
         warpSum(v_scale, warp_group_g);
@@ -283,11 +310,17 @@ fully_fused_projection_bwd_tensor(
     // fwd outputs
     const torch::Tensor &radii,                       // [C, N]
     const torch::Tensor &conics,                      // [C, N, 3]
+    const torch::Tensor &viewdirs,                    // [C, N, 3]
+    const torch::Tensor &normals,                     // [C, N, 3]
+    const torch::Tensor &dir_multiplers,              // [C, N]
     const at::optional<torch::Tensor> &compensations, // [C, N] optional
     // grad outputs
     const torch::Tensor &v_means2d,                     // [C, N, 2]
     const torch::Tensor &v_depths,                      // [C, N]
     const torch::Tensor &v_conics,                      // [C, N, 3]
+    const torch::Tensor &v_viewdirs,                    // [C, N, 3]
+    const torch::Tensor &v_normals,                     // [C, N, 3]
+    const torch::Tensor &v_planar_distances,            // [C, N]
     const at::optional<torch::Tensor> &v_compensations, // [C, N] optional
     const bool viewmats_requires_grad
 ) {
@@ -304,9 +337,15 @@ fully_fused_projection_bwd_tensor(
     GSPLAT_CHECK_INPUT(Ks);
     GSPLAT_CHECK_INPUT(radii);
     GSPLAT_CHECK_INPUT(conics);
+    GSPLAT_CHECK_INPUT(viewdirs);
+    GSPLAT_CHECK_INPUT(normals);
+    GSPLAT_CHECK_INPUT(dir_multiplers);
     GSPLAT_CHECK_INPUT(v_means2d);
     GSPLAT_CHECK_INPUT(v_depths);
     GSPLAT_CHECK_INPUT(v_conics);
+    GSPLAT_CHECK_INPUT(v_viewdirs);
+    GSPLAT_CHECK_INPUT(v_normals);
+    GSPLAT_CHECK_INPUT(v_planar_distances);
     if (compensations.has_value()) {
         GSPLAT_CHECK_INPUT(compensations.value());
     }
@@ -351,12 +390,18 @@ fully_fused_projection_bwd_tensor(
                 camera_model,
                 radii.data_ptr<int32_t>(),
                 conics.data_ptr<float>(),
+                viewdirs.data_ptr<float>(),
+                normals.data_ptr<float>(),
+                dir_multiplers.data_ptr<int8_t>(),
                 compensations.has_value()
                     ? compensations.value().data_ptr<float>()
                     : nullptr,
                 v_means2d.data_ptr<float>(),
                 v_depths.data_ptr<float>(),
                 v_conics.data_ptr<float>(),
+                v_viewdirs.data_ptr<float>(),
+                v_normals.data_ptr<float>(),
+                v_planar_distances.data_ptr<float>(),
                 v_compensations.has_value()
                     ? v_compensations.value().data_ptr<float>()
                     : nullptr,

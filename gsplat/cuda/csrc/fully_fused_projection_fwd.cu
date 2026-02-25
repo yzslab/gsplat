@@ -22,12 +22,13 @@ template <typename T>
 __global__ void fully_fused_projection_fwd_kernel(
     const uint32_t C,
     const uint32_t N,
-    const T *__restrict__ means,    // [N, 3]
-    const T *__restrict__ covars,   // [N, 6] optional
-    const T *__restrict__ quats,    // [N, 4] optional
-    const T *__restrict__ scales,   // [N, 3] optional
-    const T *__restrict__ viewmats, // [C, 4, 4]
-    const T *__restrict__ Ks,       // [C, 3, 3]
+    const T *__restrict__ means,          // [N, 3]
+    const T *__restrict__ covars,         // [N, 6] optional
+    const T *__restrict__ quats,          // [N, 4] optional
+    const T *__restrict__ scales,         // [N, 3] optional
+    const T *__restrict__ camera_centers, // [C, 3]
+    const T *__restrict__ viewmats,       // [C, 4, 4]
+    const T *__restrict__ Ks,             // [C, 3, 3]
     const int32_t image_width,
     const int32_t image_height,
     const T eps2d,
@@ -40,6 +41,10 @@ __global__ void fully_fused_projection_fwd_kernel(
     T *__restrict__ means2d,      // [C, N, 2]
     T *__restrict__ depths,       // [C, N]
     T *__restrict__ conics,       // [C, N, 3]
+    T *__restrict__ viewdirs,       // [C, N, 3]
+    T *__restrict__ normals,       // [C, N, 3]
+    T *__restrict__ planar_distances,       // [C, N]
+    int8_t *__restrict__ dir_multiplers,       // [C, N]
     T *__restrict__ compensations // [C, N] optional
 ) {
     // parallelize over C * N.
@@ -52,6 +57,7 @@ __global__ void fully_fused_projection_fwd_kernel(
 
     // shift pointers to the current camera and gaussian
     means += gid * 3;
+    camera_centers += cid * 3;
     viewmats += cid * 16;
     Ks += cid * 9;
 
@@ -96,8 +102,8 @@ __global__ void fully_fused_projection_fwd_kernel(
         // compute from quaternions and scales
         quats += gid * 4;
         scales += gid * 3;
-        quat_scale_to_covar_preci<T>(
-            glm::make_vec4(quats), glm::make_vec3(scales), &covar, nullptr
+        quat_scale_to_covar_and_normal_preci<T>(
+            glm::make_vec4(quats), glm::make_vec3(scales), normals + idx * 3, &covar, nullptr
         );
     }
     mat3<T> covar_c;
@@ -190,6 +196,27 @@ __global__ void fully_fused_projection_fwd_kernel(
     conics[idx * 3] = covar2d_inv[0][0];
     conics[idx * 3 + 1] = covar2d_inv[0][1];
     conics[idx * 3 + 2] = covar2d_inv[1][1];
+
+    // from camera center to primitive
+    auto viewdir_local = viewdirs + idx * 3;
+    viewdir_local[0] = means[0] - camera_centers[0];
+    viewdir_local[1] = means[1] - camera_centers[1];
+    viewdir_local[2] = means[2] - camera_centers[2];
+
+    T planar_distance = viewdir_local[0] * normals[idx * 3] + viewdir_local[1] * normals[idx * 3 + 1] + viewdir_local[2] * normals[idx * 3 + 2];
+
+    dir_multiplers[idx] = 1;
+    if (planar_distance > 0) {
+        normals[idx * 3] *= -1;
+        normals[idx * 3 + 1] *= -1;
+        normals[idx * 3 + 2] *= -1;
+
+        planar_distance = -planar_distance;
+
+        dir_multiplers[idx] = -1;
+    }
+    planar_distances[idx] = planar_distance;
+
     if (compensations != nullptr) {
         compensations[idx] = compensation;
     }
@@ -200,12 +227,17 @@ std::tuple<
     torch::Tensor,
     torch::Tensor,
     torch::Tensor,
+    torch::Tensor,
+    torch::Tensor,
+    torch::Tensor,
+    torch::Tensor,
     torch::Tensor>
 fully_fused_projection_fwd_tensor(
     const torch::Tensor &means,                // [N, 3]
     const at::optional<torch::Tensor> &covars, // [N, 6] optional
     const at::optional<torch::Tensor> &quats,  // [N, 4] optional
     const at::optional<torch::Tensor> &scales, // [N, 3] optional
+    const torch::Tensor &camera_centers,       // [C, 3]
     const torch::Tensor &viewmats,             // [C, 4, 4]
     const torch::Tensor &Ks,                   // [C, 3, 3]
     const uint32_t image_width,
@@ -226,6 +258,7 @@ fully_fused_projection_fwd_tensor(
         GSPLAT_CHECK_INPUT(quats.value());
         GSPLAT_CHECK_INPUT(scales.value());
     }
+    GSPLAT_CHECK_INPUT(camera_centers);
     GSPLAT_CHECK_INPUT(viewmats);
     GSPLAT_CHECK_INPUT(Ks);
 
@@ -238,6 +271,10 @@ fully_fused_projection_fwd_tensor(
     torch::Tensor means2d = torch::empty({C, N, 2}, means.options());
     torch::Tensor depths = torch::empty({C, N}, means.options());
     torch::Tensor conics = torch::empty({C, N, 3}, means.options());
+    torch::Tensor viewdirs = torch::zeros({C, N, 3}, means.options());
+    torch::Tensor normals = torch::zeros({C, N, 3}, means.options());
+    torch::Tensor planar_distances = torch::zeros({C, N}, means.options());
+    torch::Tensor dir_multiplers = torch::zeros({C, N}, means.options().dtype(torch::kInt8));
     torch::Tensor compensations;
     if (calc_compensations) {
         // we dont want NaN to appear in this tensor, so we zero intialize it
@@ -255,6 +292,7 @@ fully_fused_projection_fwd_tensor(
                 covars.has_value() ? covars.value().data_ptr<float>() : nullptr,
                 quats.has_value() ? quats.value().data_ptr<float>() : nullptr,
                 scales.has_value() ? scales.value().data_ptr<float>() : nullptr,
+                camera_centers.data_ptr<float>(),
                 viewmats.data_ptr<float>(),
                 Ks.data_ptr<float>(),
                 image_width,
@@ -268,10 +306,24 @@ fully_fused_projection_fwd_tensor(
                 means2d.data_ptr<float>(),
                 depths.data_ptr<float>(),
                 conics.data_ptr<float>(),
+                viewdirs.data_ptr<float>(),
+                normals.data_ptr<float>(),
+                planar_distances.data_ptr<float>(),
+                dir_multiplers.data_ptr<int8_t>(),
                 calc_compensations ? compensations.data_ptr<float>() : nullptr
             );
     }
-    return std::make_tuple(radii, means2d, depths, conics, compensations);
+    return std::make_tuple(
+        radii,
+        means2d,
+        depths,
+        conics,
+        viewdirs,
+        normals,
+        planar_distances,
+        dir_multiplers,
+        compensations
+    );
 }
 
 } // namespace gsplat

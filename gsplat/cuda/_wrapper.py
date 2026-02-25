@@ -205,6 +205,7 @@ def fully_fused_projection(
     covars: Optional[Tensor],  # [N, 6] or None
     quats: Optional[Tensor],  # [N, 4] or None
     scales: Optional[Tensor],  # [N, 3] or None
+    camera_centers: Tensor,  # [C, 3]
     viewmats: Tensor,  # [C, 4, 4]
     Ks: Tensor,  # [C, 3, 3]
     width: int,
@@ -217,7 +218,7 @@ def fully_fused_projection(
     sparse_grad: bool = False,
     calc_compensations: bool = False,
     camera_model: Literal["pinhole", "ortho", "fisheye"] = "pinhole",
-) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
     """Projects Gaussians to 2D.
 
     This function fuse the process of computing covariances
@@ -271,6 +272,7 @@ def fully_fused_projection(
         - **means**. Projected Gaussian means in 2D. [nnz, 2]
         - **depths**. The z-depth of the projected Gaussians. [nnz]
         - **conics**. Inverse of the projected covariances. Return the flattend upper triangle with [nnz, 3]
+        - **normals**.
         - **compensations**. The view-dependent opacity compensation factor. [nnz]
 
         If `packed` is False:
@@ -326,6 +328,7 @@ def fully_fused_projection(
             covars,
             quats,
             scales,
+            camera_centers,
             viewmats,
             Ks,
             width,
@@ -782,6 +785,7 @@ class _FullyFusedProjection(torch.autograd.Function):
         covars: Tensor,  # [N, 6] or None
         quats: Tensor,  # [N, 4] or None
         scales: Tensor,  # [N, 3] or None
+        camera_centers: Tensor,  # [C, 3]
         viewmats: Tensor,  # [C, 4, 4]
         Ks: Tensor,  # [C, 3, 3]
         width: int,
@@ -798,13 +802,14 @@ class _FullyFusedProjection(torch.autograd.Function):
         )
 
         # "covars" and {"quats", "scales"} are mutually exclusive
-        radii, means2d, depths, conics, compensations = _make_lazy_cuda_func(
+        radii, means2d, depths, conics, viewdirs, normals, planar_distances, dir_multiplers, compensations = _make_lazy_cuda_func(
             "fully_fused_projection_fwd"
         )(
             means,
             covars,
             quats,
             scales,
+            camera_centers,
             viewmats,
             Ks,
             width,
@@ -819,17 +824,28 @@ class _FullyFusedProjection(torch.autograd.Function):
         if not calc_compensations:
             compensations = None
         ctx.save_for_backward(
-            means, covars, quats, scales, viewmats, Ks, radii, conics, compensations
+            means, covars, quats, scales, viewmats, Ks, 
+            radii, conics, viewdirs, normals, dir_multiplers, compensations
         )
         ctx.width = width
         ctx.height = height
         ctx.eps2d = eps2d
         ctx.camera_model_type = camera_model_type
 
-        return radii, means2d, depths, conics, compensations
+        return radii, means2d, depths, conics, viewdirs, normals, planar_distances, compensations
 
     @staticmethod
-    def backward(ctx, v_radii, v_means2d, v_depths, v_conics, v_compensations):
+    def backward(
+        ctx, 
+        v_radii, 
+        v_means2d, 
+        v_depths, 
+        v_conics, 
+        v_viewdirs,
+        v_normals, 
+        v_planar_distances,
+        v_compensations,
+    ):
         (
             means,
             covars,
@@ -837,8 +853,12 @@ class _FullyFusedProjection(torch.autograd.Function):
             scales,
             viewmats,
             Ks,
+            
             radii,
             conics,
+            viewdirs,
+            normals,
+            dir_multiplers,
             compensations,
         ) = ctx.saved_tensors
         width = ctx.width
@@ -862,10 +882,16 @@ class _FullyFusedProjection(torch.autograd.Function):
             camera_model_type,
             radii,
             conics,
+            viewdirs,
+            normals,
+            dir_multiplers,
             compensations,
             v_means2d.contiguous(),
             v_depths.contiguous(),
             v_conics.contiguous(),
+            v_viewdirs.contiguous(),
+            v_normals.contiguous(),
+            v_planar_distances.contiguous(),
             v_compensations,
             ctx.needs_input_grad[4],  # viewmats_requires_grad
         )
@@ -884,6 +910,7 @@ class _FullyFusedProjection(torch.autograd.Function):
             v_covars,
             v_quats,
             v_scales,
+            None,
             v_viewmats,
             None,
             None,
