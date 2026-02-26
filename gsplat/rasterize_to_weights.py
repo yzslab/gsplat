@@ -98,7 +98,7 @@ def rasterize_to_vis_aware_weights(
         tile_width * tile_size >= image_width
     ), f"Assert Failed: {tile_width} * {tile_size} >= {image_width}"
 
-    accum_weights = _make_lazy_cuda_func(
+    accum_weights, accum_hits = _make_lazy_cuda_func(
         "rasterize_to_vis_aware_weights"
     )(
         means2d,
@@ -113,4 +113,4 @@ def rasterize_to_vis_aware_weights(
         pixel_weights,
     )
 
-    return accum_weights
+    return accum_weights, accum_hits

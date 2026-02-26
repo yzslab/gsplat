@@ -633,7 +633,7 @@ rasterize_to_weights_tensor(
     const torch::Tensor &pixel_weights  // [C, H, W]
 );
 
-torch::Tensor
+std::tuple<torch::Tensor, torch::Tensor>
 rasterize_to_vis_aware_weights_tensor(
     // Gaussian parameters
     const torch::Tensor &means2d,                   // [C, N, 2] or [nnz, 2]

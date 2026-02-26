@@ -31,7 +31,8 @@ __global__ void rasterize_to_vis_aware_weights(
     const int32_t *__restrict__ tile_offsets, // [C, tile_height, tile_width]
     const int32_t *__restrict__ flatten_ids,  // [n_isects]
     S *__restrict__ pixel_weights,            // [C, H, W]
-    S *__restrict__ accum_weights             // [N]
+    S *__restrict__ accum_weights,            // [N]
+    int32_t *__restrict__ accum_hits          // [N]
 ) {
     // each thread draws one pixel, but also timeshares caching gaussians in a
     // shared tile
@@ -138,6 +139,7 @@ __global__ void rasterize_to_vis_aware_weights(
             int32_t g = id_batch[t];
 
             S local_weight = 0;
+            int32_t local_hit = 0;
 
             if (!(sigma < 0.f || alpha < 1.f / 255.f) && !done) {
                 const S next_T = T * (1.0f - alpha);
@@ -150,6 +152,7 @@ __global__ void rasterize_to_vis_aware_weights(
 
                     // Visibilities
                     local_weight = pixel_weight * vis;
+                    local_hit = 1;
 
                     T = next_T;
                 }
@@ -160,14 +163,16 @@ __global__ void rasterize_to_vis_aware_weights(
             }
 
             warpSum<decltype(warp), S>(local_weight, warp);
+            warpSum<decltype(warp), int32_t>(local_hit, warp);
             if (warp.thread_rank() == 0) {
                 atomicAdd(&accum_weights[g], local_weight);
+                atomicAdd(&accum_hits[g], local_hit);
             }
         }
     }
 }
 
-torch::Tensor
+std::tuple<torch::Tensor, torch::Tensor>
 call_vis_aware_kernel(
     // Gaussian parameters
     const torch::Tensor &means2d,             // [C, N, 2] or [nnz, 2]
@@ -207,6 +212,8 @@ call_vis_aware_kernel(
 
     torch::Tensor accum_weights =
         torch::zeros({C, N}, means2d.options().dtype(torch::kFloat32));
+    torch::Tensor accum_hits =
+        torch::zeros({C, N}, means2d.options().dtype(torch::kInt32));
 
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     const uint32_t shared_mem =
@@ -244,13 +251,14 @@ call_vis_aware_kernel(
         tile_offsets.data_ptr<int32_t>(),
         flatten_ids.data_ptr<int32_t>(),
         pixel_weights.data_ptr<float>(),
-        accum_weights.data_ptr<float>()
+        accum_weights.data_ptr<float>(),
+        accum_hits.data_ptr<int32_t>()
     );
 
-    return accum_weights;
+    return std::make_tuple(accum_weights, accum_hits);
 }
 
-torch::Tensor
+std::tuple<torch::Tensor, torch::Tensor>
 rasterize_to_vis_aware_weights_tensor(
     // Gaussian parameters
     const torch::Tensor &means2d,                   // [C, N, 2] or [nnz, 2]
