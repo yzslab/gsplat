@@ -6,6 +6,8 @@ from torch import Tensor
 import gsplat.cuda._wrapper as wrapper
 from .rasterize_to_visibilities import rasterize_to_visibilities
 
+multiple_absgrad_notified = False
+
 
 def get_intrinsics_matrix(fx, fy, cx, cy, device):
     K = torch.eye(3, device=device)
@@ -237,7 +239,6 @@ class _RasterizeToPixels(torch.autograd.Function):
                 v_render_alphas.contiguous(),
             )
 
-
             means2d.gs2d_hessian = v_gs2d.squeeze(0)
 
             v_means2d = None
@@ -272,7 +273,14 @@ class _RasterizeToPixels(torch.autograd.Function):
             )
 
             if absgrad:
-                means2d.absgrad = v_means2d_abs.squeeze(0)
+                if hasattr(means2d, "absgrad"):
+                    global multiple_absgrad_notified
+                    if not multiple_absgrad_notified:
+                        print("\n[WARNING] Multiple absgrad received. Make sure this is expected.\n")
+                        multiple_absgrad_notified = True
+                    means2d.absgrad += v_means2d_abs.squeeze(0)
+                else:
+                    means2d.absgrad = v_means2d_abs.squeeze(0)
 
             if ctx.needs_input_grad[4]:
                 v_backgrounds = (v_render_colors * (1.0 - render_alphas).float()).sum(
