@@ -187,14 +187,14 @@ __global__ void rasterize_to_pixels_hessian_approximation_bwd_kernel(
             // vec3<S> v_conic_local = {0.f, 0.f, 0.f};
             // vec2<S> v_xy_local = {0.f, 0.f};
             // S v_opacity_local = 0.f;
-            S v_dG_local = 0.f;
+            S v_dG2_local = 0.f;
             // initialize everything to 0, only set if the lane is valid
             if (valid) {
                 // compute the current T for this gaussian
                 S ra = 1.0f / (1.0f - alpha);
                 T *= ra;
                 // update v_rgb for this gaussian
-                // const S fac = alpha * T;
+                const S fac = alpha * T;
                 // GSPLAT_PRAGMA_UNROLL
                 // for (uint32_t k = 0; k < COLOR_DIM; ++k) {
                 //     v_rgb_local[k] = fac * v_render_c[k];
@@ -218,7 +218,7 @@ __global__ void rasterize_to_pixels_hessian_approximation_bwd_kernel(
                     v_alpha += -T_final * ra * accum; // dL_dalpha += (-T_final / (1.f - alpha)) * bg_dot_dpixel;
                 }
 
-                v_dG_local = opac * v_alpha;
+                v_dG2_local = opac * v_alpha * opac * v_alpha;
 
                 // vis -> G
 
@@ -238,16 +238,16 @@ __global__ void rasterize_to_pixels_hessian_approximation_bwd_kernel(
                 //     v_opacity_local = vis * v_alpha;
                 // }
 
-                // GSPLAT_PRAGMA_UNROLL
-                // for (uint32_t k = 0; k < COLOR_DIM; ++k) {
-                    // buffer[k] += rgbs_batch[t * COLOR_DIM + k] * fac;
-                // }
+                GSPLAT_PRAGMA_UNROLL
+                for (uint32_t k = 0; k < COLOR_DIM; ++k) {
+                    buffer[k] += rgbs_batch[t * COLOR_DIM + k] * fac;
+                }
             }
             // warpSum<COLOR_DIM, S>(v_rgb_local, warp);
             // warpSum<decltype(warp), S>(v_conic_local, warp);
             // warpSum<decltype(warp), S>(v_xy_local, warp);
             // warpSum<decltype(warp), S>(v_opacity_local, warp);
-            warpSum<decltype(warp), S>(v_dG_local, warp);
+            warpSum<decltype(warp), S>(v_dG2_local, warp);
             if (warp.thread_rank() == 0) {
                 int32_t g = id_batch[t]; // flatten index in [C * N] or [nnz]
                 // S *v_rgb_ptr = (S *)(v_colors) + COLOR_DIM * g;
@@ -267,7 +267,7 @@ __global__ void rasterize_to_pixels_hessian_approximation_bwd_kernel(
             
                 // gpuAtomicAdd(v_opacities + g, v_opacity_local);
 
-                gpuAtomicAdd(v_G2 + g, v_dG_local * v_dG_local);
+                gpuAtomicAdd(v_G2 + g, v_dG2_local);
             }
         }
     }
