@@ -188,6 +188,22 @@ std::tuple<torch::Tensor, torch::Tensor> isect_offset_encode_tile_based_culling_
     const uint32_t tile_height
 );
 
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> isect_tiles_speedy_tensor(
+    const torch::Tensor &means2d,                    // [C, N, 2] or [nnz, 2]
+    const torch::Tensor &radii,                      // [C, N] or [nnz]
+    const torch::Tensor &depths,                     // [C, N] or [nnz]
+    const torch::Tensor &conics,                     // [C, N, 3] or [nnz, 3]
+    const torch::Tensor &opacities,                  // [C, N] or [nnz]
+    const at::optional<torch::Tensor> &camera_ids,   // [nnz]
+    const at::optional<torch::Tensor> &gaussian_ids, // [nnz]
+    const uint32_t C,
+    const uint32_t tile_size,
+    const uint32_t tile_width,
+    const uint32_t tile_height,
+    const bool sort,
+    const bool double_buffer
+);
+
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
 rasterize_to_pixels_fwd_tensor(
     // Gaussian parameters
